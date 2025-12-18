@@ -9,12 +9,12 @@ The original gmcli is excellent but requests full Gmail access (`mail.google.com
 1. **Narrows OAuth scopes** for safer agent usage:
    - `gmail.readonly` - Read messages, threads, settings
    - `gmail.labels` - Create, update, delete labels
-   - No send/compose permissions at the API level
+   - `gmail.compose` - Create drafts (no direct send permission)
 
 2. **Restricts dangerous operations** in the CLI:
-   - `send`, `drafts create`, `drafts send`, `drafts delete` are blocked
+   - `send`, `drafts send`, `drafts delete` are blocked
    - Returns guidance directing users to the Gmail web interface
-   - Prevents AI agents from sending emails without human review
+   - Drafts can be created for human review before sending
 
 3. **Simplifies CLI for agent usage**:
    - Renamed binary from `gmcli` to `gmail`
@@ -117,6 +117,17 @@ GMAIL COMMANDS
       View draft with attachments.
       --download saves attachments to ~/.gmail-cli/attachments/
 
+  gmail drafts create --to=<email> --subject=<subject> --body=<body> [options]
+      Create a new draft email.
+      --to          Recipient email (required, comma-separated for multiple)
+      --subject     Email subject (required)
+      --body        Email body text (required)
+      --cc          CC recipients (optional, comma-separated)
+      --bcc         BCC recipients (optional, comma-separated)
+      --thread      Thread ID to add draft to (optional)
+      --reply-to    Message ID to reply to (optional)
+      --attach      File paths to attach (optional, comma-separated)
+
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.
       Uses canonical URL format with email parameter.
@@ -124,7 +135,6 @@ GMAIL COMMANDS
 RESTRICTED OPERATIONS
 
   gmail send            - Returns guidance to use Gmail web interface
-  gmail drafts create   - Returns guidance to use Gmail web interface
   gmail drafts send     - Returns guidance to use Gmail web interface
   gmail drafts delete   - Returns guidance to use Gmail web interface
 
@@ -150,9 +160,9 @@ DATA STORAGE
 
 | Feature | @mariozechner/gmcli | @smcllns/gmail |
 |---------|---------------------|----------------|
-| OAuth scopes | Full access (`mail.google.com`) | Read-only + labels |
+| OAuth scopes | Full access (`mail.google.com`) | Read-only + labels + compose |
 | Send email | ✅ Supported | ❌ Blocked (returns guidance) |
-| Create drafts | ✅ Supported | ❌ Blocked |
+| Create drafts | ✅ Supported | ✅ Supported |
 | Send drafts | ✅ Supported | ❌ Blocked |
 | Delete drafts | ✅ Supported | ❌ Blocked |
 | Binary name | `gmcli` | `gmail` |

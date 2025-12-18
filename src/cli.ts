@@ -71,13 +71,23 @@ GMAIL COMMANDS
       View draft with attachments.
       --download saves attachments to ~/.gmail-cli/attachments/
 
+  gmail drafts create --to=<email> --subject=<subject> --body=<body> [options]
+      Create a new draft email.
+      --to          Recipient email (required, comma-separated for multiple)
+      --subject     Email subject (required)
+      --body        Email body text (required)
+      --cc          CC recipients (optional, comma-separated)
+      --bcc         BCC recipients (optional, comma-separated)
+      --thread      Thread ID to add draft to (optional)
+      --reply-to    Message ID to reply to (optional)
+      --attach      File paths to attach (optional, comma-separated)
+
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.
       Uses canonical URL format with email parameter.
 
 RESTRICTED OPERATIONS (will return guidance instead of executing)
 
-  gmail drafts create    - Not permitted: drafts should be created manually
   gmail drafts send      - Not permitted: sending requires human review
   gmail drafts delete    - Not permitted: deletion requires human confirmation
   gmail send             - Not permitted: sending requires human review
@@ -453,19 +463,6 @@ This restriction ensures human review before any outbound communication.`,
 	);
 }
 
-function handleRestrictedDraftCreate(): never {
-	throw new RestrictedOperationError(
-		"Creating drafts is not permitted via this CLI.",
-		`This CLI is configured for read-only email access with label management only.
-
-To create a draft:
-1. Open Gmail directly in your browser
-2. Compose the draft manually
-
-Drafts created programmatically bypass human review of the content.`,
-	);
-}
-
 function handleRestrictedDraftSend(): never {
 	throw new RestrictedOperationError(
 		"Sending drafts is not permitted via this CLI.",
@@ -558,9 +555,42 @@ async function handleDrafts(account: string, args: string[]) {
 		case "send":
 			handleRestrictedDraftSend();
 			break;
-		case "create":
-			handleRestrictedDraftCreate();
+		case "create": {
+			const { values: createValues } = parseArgs({
+				args: rest,
+				options: {
+					to: { type: "string" },
+					subject: { type: "string" },
+					body: { type: "string" },
+					cc: { type: "string" },
+					bcc: { type: "string" },
+					thread: { type: "string" },
+					"reply-to": { type: "string" },
+					attach: { type: "string" },
+				},
+				allowPositionals: true,
+			});
+
+			if (!createValues.to) error("--to is required");
+			if (!createValues.subject) error("--subject is required");
+			if (!createValues.body) error("--body is required");
+
+			const toList = createValues.to.split(",").map((s) => s.trim());
+			const ccList = createValues.cc?.split(",").map((s) => s.trim());
+			const bccList = createValues.bcc?.split(",").map((s) => s.trim());
+			const attachList = createValues.attach?.split(",").map((s) => s.trim());
+
+			const draft = await service.createDraft(account, toList, createValues.subject, createValues.body, {
+				cc: ccList,
+				bcc: bccList,
+				threadId: createValues.thread,
+				replyToMessageId: createValues["reply-to"],
+				attachments: attachList,
+			});
+
+			console.log(`Draft created: ${draft.id}`);
 			break;
+		}
 		default:
 			error(`Unknown action: ${action}`);
 	}

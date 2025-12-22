@@ -59,6 +59,12 @@ GMAIL COMMANDS
   gmail labels list
       List all labels with ID, name, and type.
 
+  gmail labels create <name>
+      Create a new label.
+
+  gmail labels edit <label> --name <newName>
+      Rename a label. Accepts label name or ID.
+
   gmail labels <threadIds...> [--add L] [--remove L]
       Modify labels on threads (comma-separated for multiple).
       Accepts label names or IDs (names are case-insensitive).
@@ -100,6 +106,8 @@ EXAMPLES
   gmail thread 19aea1f2f3532db5
   gmail thread 19aea1f2f3532db5 --download
   gmail labels list
+  gmail labels create "My Label"
+  gmail labels edit "My Label" --name "Renamed Label"
   gmail labels abc123 --add Work --remove UNREAD
   gmail url 19aea1f2f3532db5 19aea1f2f3532db6
 
@@ -274,8 +282,14 @@ async function handleAccounts(args: string[]) {
 		case "remove": {
 			const email = args[1];
 			if (!email) error("Usage: gmail accounts remove <email>");
+			const wasDefault = service.getDefaultAccount() === email;
 			const deleted = service.deleteAccount(email);
-			console.log(deleted ? `Removed '${email}'` : `Not found: ${email}`);
+			if (deleted) {
+				if (wasDefault) service.clearDefaultAccount();
+				console.log(`Removed '${email}'${wasDefault ? " (was default)" : ""}`);
+			} else {
+				console.log(`Not found: ${email}`);
+			}
 			break;
 		}
 		default:
@@ -417,12 +431,13 @@ async function handleLabels(account: string, args: string[]) {
 		options: {
 			add: { type: "string", short: "a" },
 			remove: { type: "string", short: "r" },
+			name: { type: "string", short: "n" },
 		},
 		allowPositionals: true,
 	});
 
 	if (positionals.length === 0) {
-		error("Usage: gmail labels list | gmail labels <threadIds...> [--add L] [--remove L]");
+		error("Usage: gmail labels list | create <name> | edit <label> --name <new> | <threadIds...> [--add L] [--remove L]");
 	}
 
 	// labels list
@@ -435,10 +450,53 @@ async function handleLabels(account: string, args: string[]) {
 		return;
 	}
 
+	// labels create <name>
+	if (positionals[0] === "create") {
+		const name = positionals[1];
+		if (!name) error("Usage: gmail labels create <name>");
+		const label = await service.createLabel(account, name);
+		console.log(`Created label: ${label.name} (${label.id})`);
+		return;
+	}
+
+	// labels edit <label> --name <newName>
+	if (positionals[0] === "edit") {
+		const labelArg = positionals[1];
+		if (!labelArg) error("Usage: gmail labels edit <label> --name <newName>");
+		if (!values.name) error("--name is required for editing a label");
+
+		const { nameToId } = await service.getLabelMap(account);
+		const labelId = nameToId.get(labelArg.toLowerCase()) || labelArg;
+
+		const label = await service.updateLabel(account, labelId, values.name);
+		console.log(`Updated label: ${label.name} (${label.id})`);
+		return;
+	}
+
 	// labels <threadIds...> [--add] [--remove]
 	const threadIds = positionals;
 
-	const { nameToId } = await service.getLabelMap(account);
+	const { nameToId, idToName } = await service.getLabelMap(account);
+
+	// Check if any labels to add don't exist and provide helpful error
+	if (values.add) {
+		const labelNames = values.add.split(",");
+		const missing: string[] = [];
+		for (const name of labelNames) {
+			const id = nameToId.get(name.toLowerCase());
+			if (!id && !idToName.has(name)) {
+				missing.push(name);
+			}
+		}
+		if (missing.length > 0) {
+			error(
+				`Label(s) not found: ${missing.join(", ")}\n` +
+					`Create them first with: gmail labels create <name>\n` +
+					`Or list existing labels with: gmail labels list`,
+			);
+		}
+	}
+
 	const addLabels = values.add ? service.resolveLabelIds(values.add.split(","), nameToId) : [];
 	const removeLabels = values.remove ? service.resolveLabelIds(values.remove.split(","), nameToId) : [];
 

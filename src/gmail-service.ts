@@ -100,6 +100,10 @@ export class GmailService {
 		return this.accountStorage.getDefaultAccount();
 	}
 
+	clearDefaultAccount(): void {
+		this.accountStorage.clearDefaultAccount();
+	}
+
 	private getGmailClient(email: string): any {
 		if (!this.gmailClients.has(email)) {
 			const account = this.accountStorage.getAccount(email);
@@ -352,6 +356,45 @@ export class GmailService {
 
 	resolveLabelIds(labels: string[], nameToId: Map<string, string>): string[] {
 		return labels.map((l) => nameToId.get(l.toLowerCase()) || l);
+	}
+
+	async createLabel(
+		email: string,
+		name: string,
+		options: { showInList?: boolean; showInMessageList?: boolean } = {},
+	): Promise<{ id: string; name: string; type: string }> {
+		const gmail = this.getGmailClient(email);
+		const response = await gmail.users.labels.create({
+			userId: "me",
+			requestBody: {
+				name,
+				labelListVisibility: options.showInList === false ? "labelHide" : "labelShow",
+				messageListVisibility: options.showInMessageList === false ? "hide" : "show",
+			},
+		});
+		return {
+			id: response.data.id || "",
+			name: response.data.name || "",
+			type: response.data.type || "user",
+		};
+	}
+
+	async updateLabel(
+		email: string,
+		labelId: string,
+		name: string,
+	): Promise<{ id: string; name: string; type: string }> {
+		const gmail = this.getGmailClient(email);
+		const response = await gmail.users.labels.update({
+			userId: "me",
+			id: labelId,
+			requestBody: { name },
+		});
+		return {
+			id: response.data.id || "",
+			name: response.data.name || "",
+			type: response.data.type || "user",
+		};
 	}
 
 	async createDraft(

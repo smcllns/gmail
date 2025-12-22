@@ -105,6 +105,12 @@ GMAIL COMMANDS
   gmail labels list
       List all labels with ID, name, and type.
 
+  gmail labels create <name>
+      Create a new label.
+
+  gmail labels edit <label> --name <newName>
+      Rename a label. Accepts label name or ID.
+
   gmail labels <threadIds...> [--add L] [--remove L]
       Modify labels on threads (comma-separated for multiple).
       Accepts label names or IDs (names are case-insensitive).
@@ -145,6 +151,8 @@ EXAMPLES
   gmail thread 19aea1f2f3532db5
   gmail thread 19aea1f2f3532db5 --download
   gmail labels list
+  gmail labels create "My Label"
+  gmail labels edit "My Label" --name "Renamed Label"
   gmail labels abc123 --add Work --remove UNREAD
   gmail url 19aea1f2f3532db5
 

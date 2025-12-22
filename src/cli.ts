@@ -274,8 +274,14 @@ async function handleAccounts(args: string[]) {
 		case "remove": {
 			const email = args[1];
 			if (!email) error("Usage: gmail accounts remove <email>");
+			const wasDefault = service.getDefaultAccount() === email;
 			const deleted = service.deleteAccount(email);
-			console.log(deleted ? `Removed '${email}'` : `Not found: ${email}`);
+			if (deleted) {
+				if (wasDefault) service.clearDefaultAccount();
+				console.log(`Removed '${email}'${wasDefault ? " (was default)" : ""}`);
+			} else {
+				console.log(`Not found: ${email}`);
+			}
 			break;
 		}
 		default:

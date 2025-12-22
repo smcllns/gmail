@@ -86,6 +86,12 @@ export class AccountStorage {
 		return config.defaultAccount || null;
 	}
 
+	clearDefaultAccount(): void {
+		const config = this.loadConfig();
+		delete config.defaultAccount;
+		fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+	}
+
 	private loadConfig(): { defaultAccount?: string } {
 		if (!fs.existsSync(CONFIG_FILE)) return {};
 		try {

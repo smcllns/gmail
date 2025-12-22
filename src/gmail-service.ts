@@ -100,6 +100,10 @@ export class GmailService {
 		return this.accountStorage.getDefaultAccount();
 	}
 
+	clearDefaultAccount(): void {
+		this.accountStorage.clearDefaultAccount();
+	}
+
 	private getGmailClient(email: string): any {
 		if (!this.gmailClients.has(email)) {
 			const account = this.accountStorage.getAccount(email);

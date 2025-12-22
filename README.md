@@ -1,18 +1,22 @@
 # @smcllns/gmail
 
-A fork of [@mariozechner/gmcli](https://github.com/badlogic/gmcli) designed for use with Claude Code and other AI coding agents.
+A minimal Gmail CLI with restricted permissions so Claude Code and other agents can autonomously read and organize your inbox.
 
-## Why This Fork?
+```bash
+bunx @smcllns/gmail search "in:inbox is:unread" --max 10
+```
 
-The original gmcli is excellent but requests full Gmail access (`mail.google.com` scope). This fork:
+## Why use this?
+
+This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogic/gmcli). The original requests full Gmail permissions (read, send, delete, etc). This version limits the capabilities of the CLI tool so I'm comfortable letting agents run autonomously to understand and manage my email, but requires a human to make any one-way door decisions like sending or deleting email.
 
 1. **Narrows OAuth scopes** for safer agent usage:
    - `gmail.readonly` - Read messages, threads, settings
-   - `gmail.labels` - Create, update, delete labels
-   - `gmail.compose` - Create drafts (no direct send permission)
+   - `gmail.labels` - Create, edit, and manage labels
+   - `gmail.compose` - Create drafts (sending and deleting blocked)
 
 2. **Restricts dangerous operations** in the CLI:
-   - `send`, `drafts send`, `drafts delete` are blocked
+   - `send`, `delete`, `drafts send`, `drafts delete` are blocked
    - Returns guidance directing users to the Gmail web interface
    - Drafts can be created for human review before sending
 
@@ -21,21 +25,66 @@ The original gmcli is excellent but requests full Gmail access (`mail.google.com
    - Default account config so commands don't require email prefix
    - Usage: `bunx @smcllns/gmail <command>` or `npx @smcllns/gmail <command>`
 
-## Installation
+### Comparison
+
+| Feature | @mariozechner/gmcli (original) | @smcllns/gmail (this fork) |
+| --- | --- | --- |
+| Gmail permissions | Full access | Read-only + manage labels + create drafts |
+| OAuth scopes | `mail.google.com` | `gmail.readonly`, `gmail.labels`, `gmail.compose` |
+| Read email | ✅ Yes | ✅ Yes |
+| Create drafts | ✅ Yes | ✅ Yes |
+| Send email/drafts | ✅ Yes | ❌ No |
+| Delete email/drafts | ✅ Yes | ❌ No |
+| Create/edit labels | ❌ No | ✅ Yes |
+| Delete labels | ❌ No | ❌ No |
+| Shell command | `gmcli` | `gmail` |
+| Set default account | ❌ No | ✅ Yes |
+
+## Install
 
 ```bash
 npm install -g @smcllns/gmail
 ```
 
-Or use directly with bunx/npx:
+Or run directly:
 
 ```bash
-bunx @smcllns/gmail <command>
+npx @smcllns/gmail <command>
 ```
 
-## Setup
+## Quickstart
 
-### 1. Create OAuth Credentials
+After [setup](#setup-one-time), search your inbox:
+
+```bash
+gmail search "in:inbox is:unread"
+```
+```
+19aea1f2f35...  Dec 20  alice@example.com   "Re: Project update"   [INBOX, UNREAD]
+19aea1f3a21...  Dec 19  notifications@...   "Your weekly digest"   [INBOX, UNREAD]
+```
+
+Read a thread:
+
+```bash
+gmail thread 19aea1f2f35
+```
+
+Create a draft for review:
+
+```bash
+gmail drafts create --to="bob@example.com" --subject="Quick question" --body="Hey, are we still on for Tuesday?"
+```
+
+Open in Gmail to review and send:
+
+```bash
+gmail url 19aea1f2f35
+```
+
+## Setup (one-time)
+
+### 1. Create OAuth credentials
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project (or select existing)
@@ -47,22 +96,66 @@ bunx @smcllns/gmail <command>
 ### 2. Configure the CLI
 
 ```bash
-# Set credentials (once per machine)
-gmail accounts credentials ~/Downloads/credentials.json
+# Config saved in ~/.gmail-cli/
 
-# Add your Gmail account
+# Set up OAuth Client credentials (once per machine)
+gmail accounts credentials ~/path/to/credentials.json
+
+# Add your Gmail account (opens google sign-in in browser to auth)
 gmail accounts add you@gmail.com
 
-# The first account is automatically set as default
-# Or set manually:
-gmail config default you@gmail.com
+# Or use --manual for headless/server environments
+gmail accounts add you@gmail.com --manual
 ```
 
 ## Usage
 
-```
-gmail - Gmail CLI for Claude Code agents
+### Search
 
+Uses [Gmail search syntax](https://support.google.com/mail/answer/7190):
+
+```bash
+gmail search "in:inbox"
+gmail search "from:boss@company.com is:unread"
+gmail search "has:attachment filename:pdf after:2024/01/01"
+gmail search "label:Work subject:urgent" --max 50
+```
+
+### Read threads
+
+```bash
+gmail thread <threadId>
+gmail thread <threadId> --download  # saves attachments to ~/.gmail-cli/attachments/
+```
+
+### Manage labels
+
+```bash
+gmail labels list
+gmail labels create "My Label"
+gmail labels <threadId> --add Receipts --remove INBOX # add label "Receipts" and archive thread
+```
+
+### Create drafts
+
+```bash
+gmail drafts create \
+  --to="recipient@example.com" \
+  --subject="Subject line" \
+  --body="Email body" \
+  --cc="cc@example.com" \
+  --attach="./report.pdf"
+```
+
+### Get Gmail URLs to view messages in browser
+
+```bash
+gmail url <threadId>
+```
+
+## Full command reference
+
+```
 USAGE
 
   gmail accounts <action>              Account management
@@ -72,35 +165,23 @@ USAGE
 
 ACCOUNT COMMANDS
 
-  gmail accounts credentials <file.json>    Set OAuth credentials (once)
-  gmail accounts list                       List configured accounts
-  gmail accounts add <email> [--manual]     Add account (--manual for browserless OAuth)
-  gmail accounts remove <email>             Remove account
+  gmail accounts credentials <file>    Set OAuth credentials (once)
+  gmail accounts list                  List configured accounts
+  gmail accounts add <email>           Add account (--manual for browserless OAuth)
+  gmail accounts remove <email>        Remove account
 
 CONFIG COMMANDS
 
-  gmail config default <email>         Set default account for all commands
+  gmail config default <email>         Set default account
   gmail config show                    Show current configuration
 
 GMAIL COMMANDS
 
   gmail search <query> [--max N] [--page TOKEN]
-      Search threads using Gmail query syntax.
-      Returns: thread ID, date, sender, subject, labels.
-
-      Query examples:
-        in:inbox, in:sent, in:drafts, in:trash
-        is:unread, is:starred, is:important
-        from:sender@example.com, to:recipient@example.com
-        subject:keyword, has:attachment, filename:pdf
-        after:2024/01/01, before:2024/12/31
-        label:Work, label:UNREAD
-        Combine: "in:inbox is:unread from:boss@company.com"
+      Search threads. Returns: thread ID, date, sender, subject, labels.
 
   gmail thread <threadId> [--download]
-      Get thread with all messages.
-      Shows: Message-ID, headers, body, attachments.
-      --download saves attachments to ~/.gmail-cli/attachments/
+      Get full thread. --download saves attachments.
 
   gmail labels list
       List all labels with ID, name, and type.
@@ -109,73 +190,85 @@ GMAIL COMMANDS
       Create a new label.
 
   gmail labels edit <label> --name <newName>
-      Rename a label. Accepts label name or ID.
+      Rename a label.
 
   gmail labels <threadIds...> [--add L] [--remove L]
-      Modify labels on threads (comma-separated for multiple).
-      Accepts label names or IDs (names are case-insensitive).
+      Modify labels on threads.
       System labels: INBOX, UNREAD, STARRED, IMPORTANT, TRASH, SPAM
 
   gmail drafts list
-      List all drafts. Returns: draft ID, message ID.
+      List all drafts.
 
   gmail drafts get <draftId> [--download]
       View draft with attachments.
-      --download saves attachments to ~/.gmail-cli/attachments/
 
-  gmail drafts create --to=<email> --subject=<subject> --body=<body> [options]
-      Create a new draft email.
-      --to          Recipient email (required, comma-separated for multiple)
-      --subject     Email subject (required)
-      --body        Email body text (required)
-      --cc          CC recipients (optional, comma-separated)
-      --bcc         BCC recipients (optional, comma-separated)
-      --thread      Thread ID to add draft to (optional)
-      --reply-to    Message ID to reply to (optional)
-      --attach      File paths to attach (optional, comma-separated)
+  gmail drafts create --to=<email> --subject=<s> --body=<b> [options]
+      Create draft. Options: --cc, --bcc, --thread, --reply-to, --attach
 
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.
-      Uses canonical URL format with email parameter.
 
-RESTRICTED OPERATIONS
+RESTRICTED (returns guidance to use Gmail web UI)
 
-  gmail send            - Returns guidance to use Gmail web interface
-  gmail drafts send     - Returns guidance to use Gmail web interface
-  gmail drafts delete   - Returns guidance to use Gmail web interface
-
-EXAMPLES
-
-  gmail search "in:inbox is:unread"
-  gmail search "from:boss@company.com" --max 50
-  gmail thread 19aea1f2f3532db5
-  gmail thread 19aea1f2f3532db5 --download
-  gmail labels list
-  gmail labels create "My Label"
-  gmail labels edit "My Label" --name "Renamed Label"
-  gmail labels abc123 --add Work --remove UNREAD
-  gmail url 19aea1f2f3532db5
+  gmail send
+  gmail delete
+  gmail drafts send
+  gmail drafts delete
 
 DATA STORAGE
 
   ~/.gmail-cli/credentials.json   OAuth client credentials
   ~/.gmail-cli/accounts.json      Account tokens
-  ~/.gmail-cli/config.json        CLI configuration (default account)
+  ~/.gmail-cli/config.json        CLI configuration
   ~/.gmail-cli/attachments/       Downloaded attachments
 ```
 
-## Key Differences from Upstream
+## How to use with Claude Code
 
-| Feature | @mariozechner/gmcli | @smcllns/gmail |
-|---------|---------------------|----------------|
-| OAuth scopes | Full access (`mail.google.com`) | Read-only + labels + compose |
-| Send email | ✅ Supported | ❌ Blocked (returns guidance) |
-| Create drafts | ✅ Supported | ✅ Supported |
-| Send drafts | ✅ Supported | ❌ Blocked |
-| Delete drafts | ✅ Supported | ❌ Blocked |
-| Binary name | `gmcli` | `gmail` |
-| Default account | Not supported | ✅ `gmail config default` |
-| Data directory | `~/.gmcli/` | `~/.gmail-cli/` |
+Here's an abbreviated example of how I use this with Claude Code:
+
+### 1. Create a `gmail` skill
+
+Show Claude how to use the CLI (independent of your specific preferences). The full content is similar to this README. Abbreviated:
+
+```yaml
+# .claude/skills/gmail/SKILL.md
+---
+name: gmail
+description: Fetches and manages Gmail using @smcllns/gmail. Use when the user asks about their email, wants an email summary, or needs to search/read/archive messages.
+allowed-tools: Bash(bunx @smcllns/gmail:*)
+---
+# ...
+
+# Fetch first 25 unread messages in inbox
+bunx @smcllns/gmail search "in:inbox is:unread" --max 25
+
+# ...
+```
+
+### 2. Create an `/email` command
+
+This contains all my subjective instructions and preferences for how to organize my inbox and what I want done. An abbreviated version:
+
+```yaml
+# .claude/commands/email.md
+---
+description: Read recent emails, organize into categories and write email reports to Obsidian
+allowed-tools: Skill(gmail)
+---
+You are an executive assistant. Your task is to process email so it is efficient to review and take action.
+
+Every email gets exactly one category
+
+| Category | What belongs here |
+|----------|-------------------|
+| ⚠️ **Action** | Decision needed or response required |
+| 📅 **Calendar** | Appointments, RSVPs, event reminders |
+| 📦 **Packages** | Shipping, returns, food delivery |
+
+What to elevate to my inbox for attention (everything else skips inbox)
+- ...
+```
 
 ## License
 

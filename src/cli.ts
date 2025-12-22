@@ -94,9 +94,10 @@ GMAIL COMMANDS
 
 RESTRICTED OPERATIONS (will return guidance instead of executing)
 
+  gmail send             - Not permitted: sending requires human review
+  gmail delete           - Not permitted: deletion requires human confirmation
   gmail drafts send      - Not permitted: sending requires human review
   gmail drafts delete    - Not permitted: deletion requires human confirmation
-  gmail send             - Not permitted: sending requires human review
 
 EXAMPLES
 
@@ -188,6 +189,9 @@ async function main() {
 				break;
 			case "send":
 				handleRestrictedSend();
+				break;
+			case "delete":
+				handleRestrictedDelete();
 				break;
 			case "url":
 				handleUrl(account, commandArgs);
@@ -544,6 +548,20 @@ To delete a draft:
 1. Open Gmail directly in your browser
 2. Navigate to Drafts
 3. Delete the draft manually after confirmation
+
+This restriction prevents accidental data loss.`,
+	);
+}
+
+function handleRestrictedDelete(): never {
+	throw new RestrictedOperationError(
+		"Deleting emails is not permitted via this CLI.",
+		`This CLI is configured for read-only email access with label management only.
+
+To delete emails:
+1. Open Gmail directly in your browser
+2. Select the emails to delete
+3. Delete them manually after confirmation
 
 This restriction prevents accidental data loss.`,
 	);

@@ -1,7 +1,7 @@
 {
 	"name": "@smcllns/gmail",
 	"version": "0.1.4",
-	"description": "Minimal Gmail CLI with restricted scopes for Claude Code agents",
+	"description": "Minimal Gmail CLI with restricted scopes for Claude Code and other agents",
 	"type": "module",
 	"bin": {
 		"gmail": "dist/cli.js"
@@ -27,10 +27,18 @@
 	"keywords": [
 		"gmail",
 		"email",
-		"cli"
+		"cli",
+		"claude",
+		"agent",
+		"automation"
 	],
-	"author": "",
+	"author": "smcllns",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/smcllns/gmail.git"
+	},
+	"homepage": "https://github.com/smcllns/gmail#readme",
 	"engines": {
 		"node": ">=20.0.0"
 	}

@@ -1,0 +1,45 @@
+name: Publish to npm
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version changed
+        id: version
+        run: |
+          OLD_VERSION=$(git show HEAD~1:package.json | grep '"version"' | sed 's/.*"version": "\(.*\)".*/\1/')
+          NEW_VERSION=$(grep '"version"' package.json | sed 's/.*"version": "\(.*\)".*/\1/')
+          if [ "$OLD_VERSION" != "$NEW_VERSION" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Version changed: $OLD_VERSION → $NEW_VERSION"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Version unchanged: $NEW_VERSION"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.version.outputs.changed == 'true'
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+        if: steps.version.outputs.changed == 'true'
+
+      - run: npm run build
+        if: steps.version.outputs.changed == 'true'
+
+      - run: npm publish --access public
+        if: steps.version.outputs.changed == 'true'

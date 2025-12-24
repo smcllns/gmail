@@ -5,11 +5,10 @@ import * as readline from "readline";
 import * as url from "url";
 import { OAuth2Client } from "google-auth-library";
 
-// Narrow scopes: readonly access + labels + compose (drafts only, no send)
 const SCOPES = [
-	"https://www.googleapis.com/auth/gmail.readonly", // Read messages, threads, settings
-	"https://www.googleapis.com/auth/gmail.labels", // Create, update, delete labels
-	"https://www.googleapis.com/auth/gmail.compose", // Create drafts (send still blocked in code)
+	"https://www.googleapis.com/auth/gmail.modify", // Read messages, threads, add and remove labels
+	"https://www.googleapis.com/auth/gmail.labels", // Create and edit labels
+	"https://www.googleapis.com/auth/gmail.compose", // Create drafts
 ];
 const TIMEOUT_MS = 2 * 60 * 1000;
 

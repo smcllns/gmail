@@ -8,19 +8,18 @@ bunx @smcllns/gmail search "in:inbox is:unread" --max 10
 
 ## Why use this?
 
-This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogic/gmcli). The original requests full Gmail permissions (read, send, delete, etc). This version limits the capabilities of the CLI tool so I'm comfortable letting agents run autonomously to understand and manage my email, but requires a human to make any one-way door decisions like sending or deleting email.
+This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogic/gmcli). The original requests full Gmail permissions (`mail.google.com`), and I wanted to restrict capabilities to prevent agents from accidentally sending or deleting email. The intent is to let agents run autonomously to understand and manage the inbox, while requiring a human to make any one-way door decisions.
 
-1. **Narrows OAuth scopes** for safer agent usage:
-   - `gmail.readonly` - Read messages, threads, settings
-   - `gmail.labels` - Create, edit, and manage labels
-   - `gmail.compose` - Create drafts (sending and deleting blocked)
+1. **Restricted OAuth scopes** - The original uses `mail.google.com` (full access). This fork requests only:
+   - `gmail.modify` - to read messages, threads, and change labels
+   - `gmail.labels` - to create and edit labels
+   - `gmail.compose` - to create drafts
 
-2. **Restricts dangerous operations** in the CLI:
-   - `send`, `delete`, `drafts send`, `drafts delete` are blocked
-   - Returns guidance directing users to the Gmail web interface
-   - Drafts can be created for human review before sending
+2. **Dangerous operations blocked in CLI** - Even where oAuth scopes allow, the CLI blocks:
+   - `send`, `delete`, `drafts send`, `drafts delete` commands are disabled
+   - Disabled commands return guidance directing users to the Gmail web interface
 
-3. **Simplifies CLI for agent usage**:
+3. **Simplified for agent usage**:
    - Renamed binary from `gmcli` to `gmail`
    - Default account config so commands don't require email prefix
    - Usage: `bunx @smcllns/gmail <command>` or `npx @smcllns/gmail <command>`
@@ -29,8 +28,8 @@ This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogi
 
 | Feature | @mariozechner/gmcli (original) | @smcllns/gmail (this fork) |
 | --- | --- | --- |
-| Gmail permissions | Full access | Read-only + manage labels + create drafts |
-| OAuth scopes | `mail.google.com` | `gmail.readonly`, `gmail.labels`, `gmail.compose` |
+| Gmail permissions | Full access | Read, organize, draft (no send/delete) |
+| OAuth scopes | `mail.google.com` | `gmail.modify`, `gmail.labels`, `gmail.compose` |
 | Read email | ✅ Yes | ✅ Yes |
 | Create drafts | ✅ Yes | ✅ Yes |
 | Send email/drafts | ✅ Yes | ❌ No |

@@ -8,7 +8,6 @@ import { OAuth2Client } from "google-auth-library";
 const SCOPES = [
 	"https://www.googleapis.com/auth/gmail.modify", // Read messages, threads, add and remove labels
 	"https://www.googleapis.com/auth/gmail.labels", // Create and edit labels
-	"https://www.googleapis.com/auth/gmail.compose", // Create drafts
 ];
 const TIMEOUT_MS = 2 * 60 * 1000;
 

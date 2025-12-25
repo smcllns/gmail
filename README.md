@@ -13,10 +13,9 @@ This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogi
 1. **Restricted OAuth scopes** - The original uses `mail.google.com` (full access). This fork requests only:
    - `gmail.modify` - to read messages, threads, and change labels
    - `gmail.labels` - to create and edit labels
-   - `gmail.compose` - to create drafts
 
-2. **Dangerous operations blocked in CLI** - Even where oAuth scopes allow, the CLI blocks:
-   - `send`, `delete`, `drafts send`, `drafts delete` commands are disabled
+2. **Dangerous operations blocked in CLI** - Even where OAuth scopes allow, the CLI blocks:
+   - `send` and `delete` commands are disabled
    - Disabled commands return guidance directing users to the Gmail web interface
 
 3. **Simplified for agent usage**:
@@ -28,14 +27,12 @@ This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogi
 
 | Feature | @mariozechner/gmcli (original) | @smcllns/gmail (this fork) |
 | --- | --- | --- |
-| Gmail permissions | Full access | Read, organize, draft (no send/delete) |
-| OAuth scopes | `mail.google.com` | `gmail.modify`, `gmail.labels`, `gmail.compose` |
+| Gmail permissions | Full access | Read and organize mail (no send/delete) |
+| OAuth scopes | `mail.google.com` | `gmail.modify`, `gmail.labels` |
 | Read email | ✅ Yes | ✅ Yes |
-| Create drafts | ✅ Yes | ✅ Yes |
-| Send email/drafts | ✅ Yes | ❌ No |
-| Delete email/drafts | ✅ Yes | ❌ No |
-| Create/edit labels | ❌ No | ✅ Yes |
-| Delete labels | ❌ No | ❌ No |
+| Send email | ✅ Yes | ❌ No |
+| Delete email | ✅ Yes | ❌ No |
+| Manage labels | ❌ No | ✅ Yes |
 | Shell command | `gmcli` | `gmail` |
 | Set default account | ❌ No | ✅ Yes |
 
@@ -45,7 +42,7 @@ This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogi
 npm install -g @smcllns/gmail
 ```
 
-Or run directly:
+Or run directly without global install:
 
 ```bash
 npx @smcllns/gmail <command>
@@ -56,29 +53,7 @@ npx @smcllns/gmail <command>
 After [setup](#setup-one-time), search your inbox:
 
 ```bash
-gmail search "in:inbox is:unread"
-```
-```
-19aea1f2f35...  Dec 20  alice@example.com   "Re: Project update"   [INBOX, UNREAD]
-19aea1f3a21...  Dec 19  notifications@...   "Your weekly digest"   [INBOX, UNREAD]
-```
-
-Read a thread:
-
-```bash
-gmail thread 19aea1f2f35
-```
-
-Create a draft for review:
-
-```bash
-gmail drafts create --to="bob@example.com" --subject="Quick question" --body="Hey, are we still on for Tuesday?"
-```
-
-Open in Gmail to review and send:
-
-```bash
-gmail url 19aea1f2f35
+gmail search "in:inbox is:unread" --max 10
 ```
 
 ## Setup (one-time)
@@ -135,17 +110,6 @@ gmail labels create "My Label"
 gmail labels <threadId> --add Receipts --remove INBOX # add label "Receipts" and archive thread
 ```
 
-### Create drafts
-
-```bash
-gmail drafts create \
-  --to="recipient@example.com" \
-  --subject="Subject line" \
-  --body="Email body" \
-  --cc="cc@example.com" \
-  --attach="./report.pdf"
-```
-
 ### Get Gmail URLs to view messages in browser
 
 ```bash
@@ -195,15 +159,6 @@ GMAIL COMMANDS
       Modify labels on threads.
       System labels: INBOX, UNREAD, STARRED, IMPORTANT, TRASH, SPAM
 
-  gmail drafts list
-      List all drafts.
-
-  gmail drafts get <draftId> [--download]
-      View draft with attachments.
-
-  gmail drafts create --to=<email> --subject=<s> --body=<b> [options]
-      Create draft. Options: --cc, --bcc, --thread, --reply-to, --attach
-
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.
 
@@ -211,8 +166,6 @@ RESTRICTED (returns guidance to use Gmail web UI)
 
   gmail send
   gmail delete
-  gmail drafts send
-  gmail drafts delete
 
 DATA STORAGE
 

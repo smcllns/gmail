@@ -39,6 +39,8 @@ CONFIG COMMANDS
 GMAIL COMMANDS
 
   gmail search <query> [--max N] [--page TOKEN]
+  gmail list <query> [--max N] [--page TOKEN]
+  gmail list --query <query> [--max N] [--page TOKEN]
       Search threads using Gmail query syntax.
       Returns: thread ID, date, sender, subject, labels.
 
@@ -70,24 +72,6 @@ GMAIL COMMANDS
       Accepts label names or IDs (names are case-insensitive).
       System labels: INBOX, UNREAD, STARRED, IMPORTANT, TRASH, SPAM
 
-  gmail drafts list
-      List all drafts. Returns: draft ID, message ID.
-
-  gmail drafts get <draftId> [--download]
-      View draft with attachments.
-      --download saves attachments to ~/.gmail-cli/attachments/
-
-  gmail drafts create --to=<email> --subject=<subject> --body=<body> [options]
-      Create a new draft email.
-      --to          Recipient email (required, comma-separated for multiple)
-      --subject     Email subject (required)
-      --body        Email body text (required)
-      --cc          CC recipients (optional, comma-separated)
-      --bcc         BCC recipients (optional, comma-separated)
-      --thread      Thread ID to add draft to (optional)
-      --reply-to    Message ID to reply to (optional)
-      --attach      File paths to attach (optional, comma-separated)
-
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.
       Uses canonical URL format with email parameter.
@@ -96,8 +80,6 @@ RESTRICTED OPERATIONS (will return guidance instead of executing)
 
   gmail send             - Not permitted: sending requires human review
   gmail delete           - Not permitted: deletion requires human confirmation
-  gmail drafts send      - Not permitted: sending requires human review
-  gmail drafts delete    - Not permitted: deletion requires human confirmation
 
 EXAMPLES
 
@@ -176,6 +158,7 @@ async function main() {
 
 		switch (command) {
 			case "search":
+			case "list":
 				await handleSearch(account, commandArgs);
 				break;
 			case "thread":
@@ -184,15 +167,10 @@ async function main() {
 			case "labels":
 				await handleLabels(account, commandArgs);
 				break;
-			case "drafts":
-				await handleDrafts(account, commandArgs);
-				break;
 			case "send":
 				handleRestrictedSend();
-				break;
 			case "delete":
 				handleRestrictedDelete();
-				break;
 			case "url":
 				handleUrl(account, commandArgs);
 				break;
@@ -307,11 +285,12 @@ async function handleSearch(account: string, args: string[]) {
 		options: {
 			max: { type: "string", short: "m" },
 			page: { type: "string", short: "p" },
+			query: { type: "string", short: "q" },
 		},
 		allowPositionals: true,
 	});
 
-	const query = positionals.join(" ");
+	const query = values.query || positionals.join(" ");
 	if (!query) error("Usage: gmail search <query>");
 
 	const results = await service.searchThreads(account, query, Number(values.max) || 10, values.page);
@@ -525,34 +504,6 @@ This restriction ensures human review before any outbound communication.`,
 	);
 }
 
-function handleRestrictedDraftSend(): never {
-	throw new RestrictedOperationError(
-		"Sending drafts is not permitted via this CLI.",
-		`This CLI is configured for read-only email access with label management only.
-
-To send a draft:
-1. Open Gmail directly in your browser
-2. Review the draft content
-3. Send it manually after verification
-
-This restriction ensures human review before any outbound communication.`,
-	);
-}
-
-function handleRestrictedDraftDelete(): never {
-	throw new RestrictedOperationError(
-		"Deleting drafts is not permitted via this CLI.",
-		`This CLI is configured for read-only email access with label management only.
-
-To delete a draft:
-1. Open Gmail directly in your browser
-2. Navigate to Drafts
-3. Delete the draft manually after confirmation
-
-This restriction prevents accidental data loss.`,
-	);
-}
-
 function handleRestrictedDelete(): never {
 	throw new RestrictedOperationError(
 		"Deleting emails is not permitted via this CLI.",
@@ -565,111 +516,6 @@ To delete emails:
 
 This restriction prevents accidental data loss.`,
 	);
-}
-
-async function handleDrafts(account: string, args: string[]) {
-	const action = args[0];
-	const rest = args.slice(1);
-	if (!action) error("Usage: gmail drafts <action>");
-
-	switch (action) {
-		case "list": {
-			const drafts = await service.listDrafts(account);
-			if (drafts.length === 0) {
-				console.log("No drafts");
-			} else {
-				console.log("ID\tMESSAGE_ID");
-				for (const d of drafts) {
-					console.log(`${d.id}\t${d.message?.id || ""}`);
-				}
-			}
-			break;
-		}
-		case "get": {
-			const download = rest.includes("--download");
-			const filtered = rest.filter((a) => a !== "--download");
-			const draftId = filtered[0];
-			if (!draftId) error("Usage: gmail drafts get <draftId> [--download]");
-			const draft = await service.getDraft(account, draftId);
-			const msg = draft.message;
-			if (msg) {
-				if (download) {
-					const downloaded = await service.downloadMessageAttachments(account, msg.id!);
-					if (downloaded.length === 0) {
-						console.log("No attachments");
-					} else {
-						console.log("FILENAME\tPATH\tSIZE");
-						for (const a of downloaded) {
-							console.log(`${a.filename}\t${a.path}\t${a.size}`);
-						}
-					}
-				} else {
-					const headers = msg.payload?.headers || [];
-					const getHeader = (name: string) =>
-						headers.find((h: any) => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
-					console.log(`Draft-ID: ${draft.id}`);
-					console.log(`To: ${getHeader("to")}`);
-					console.log(`Cc: ${getHeader("cc")}`);
-					console.log(`Subject: ${getHeader("subject")}`);
-					console.log("");
-					console.log(decodeBody(msg.payload));
-					console.log("");
-					const attachments = getAttachments(msg.payload);
-					if (attachments.length > 0) {
-						console.log("Attachments:");
-						for (const att of attachments) {
-							console.log(`  - ${att.filename} (${formatSize(att.size)}, ${att.mimeType})`);
-						}
-					}
-				}
-			}
-			break;
-		}
-		case "delete":
-			handleRestrictedDraftDelete();
-			break;
-		case "send":
-			handleRestrictedDraftSend();
-			break;
-		case "create": {
-			const { values: createValues } = parseArgs({
-				args: rest,
-				options: {
-					to: { type: "string" },
-					subject: { type: "string" },
-					body: { type: "string" },
-					cc: { type: "string" },
-					bcc: { type: "string" },
-					thread: { type: "string" },
-					"reply-to": { type: "string" },
-					attach: { type: "string" },
-				},
-				allowPositionals: true,
-			});
-
-			if (!createValues.to) error("--to is required");
-			if (!createValues.subject) error("--subject is required");
-			if (!createValues.body) error("--body is required");
-
-			const toList = createValues.to.split(",").map((s) => s.trim());
-			const ccList = createValues.cc?.split(",").map((s) => s.trim());
-			const bccList = createValues.bcc?.split(",").map((s) => s.trim());
-			const attachList = createValues.attach?.split(",").map((s) => s.trim());
-
-			const draft = await service.createDraft(account, toList, createValues.subject, createValues.body, {
-				cc: ccList,
-				bcc: bccList,
-				threadId: createValues.thread,
-				replyToMessageId: createValues["reply-to"],
-				attachments: attachList,
-			});
-
-			console.log(`Draft created: ${draft.id}`);
-			break;
-		}
-		default:
-			error(`Unknown action: ${action}`);
-	}
 }
 
 function handleUrl(account: string, args: string[]) {

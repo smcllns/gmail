@@ -326,13 +326,17 @@ export class GmailService {
 		return results;
 	}
 
-	async listLabels(email: string): Promise<Array<{ id: string; name: string; type: string }>> {
+	async listLabels(
+		email: string,
+	): Promise<Array<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }>> {
 		const gmail = this.getGmailClient(email);
 		const response = await gmail.users.labels.list({ userId: "me" });
 		return (response.data.labels || []).map((l: any) => ({
 			id: l.id || "",
 			name: l.name || "",
 			type: l.type || "",
+			textColor: l.color?.textColor,
+			backgroundColor: l.color?.backgroundColor,
 		}));
 	}
 
@@ -354,39 +358,80 @@ export class GmailService {
 	async createLabel(
 		email: string,
 		name: string,
-		options: { showInList?: boolean; showInMessageList?: boolean } = {},
-	): Promise<{ id: string; name: string; type: string }> {
+		options: {
+			showInList?: boolean;
+			showInMessageList?: boolean;
+			textColor?: string;
+			backgroundColor?: string;
+		} = {},
+	): Promise<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }> {
 		const gmail = this.getGmailClient(email);
+		const requestBody: any = {
+			name,
+			labelListVisibility: options.showInList === false ? "labelHide" : "labelShow",
+			messageListVisibility: options.showInMessageList === false ? "hide" : "show",
+		};
+
+		if (options.textColor || options.backgroundColor) {
+			requestBody.color = {};
+			if (options.textColor) {
+				requestBody.color.textColor = options.textColor;
+			}
+			if (options.backgroundColor) {
+				requestBody.color.backgroundColor = options.backgroundColor;
+			}
+		}
+
 		const response = await gmail.users.labels.create({
 			userId: "me",
-			requestBody: {
-				name,
-				labelListVisibility: options.showInList === false ? "labelHide" : "labelShow",
-				messageListVisibility: options.showInMessageList === false ? "hide" : "show",
-			},
+			requestBody,
 		});
 		return {
 			id: response.data.id || "",
 			name: response.data.name || "",
 			type: response.data.type || "user",
+			textColor: response.data.color?.textColor,
+			backgroundColor: response.data.color?.backgroundColor,
 		};
 	}
 
 	async updateLabel(
 		email: string,
 		labelId: string,
-		name: string,
-	): Promise<{ id: string; name: string; type: string }> {
+		options: {
+			name?: string;
+			textColor?: string;
+			backgroundColor?: string;
+		},
+	): Promise<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }> {
 		const gmail = this.getGmailClient(email);
+		const requestBody: any = {};
+
+		if (options.name) {
+			requestBody.name = options.name;
+		}
+
+		if (options.textColor || options.backgroundColor) {
+			requestBody.color = {};
+			if (options.textColor) {
+				requestBody.color.textColor = options.textColor;
+			}
+			if (options.backgroundColor) {
+				requestBody.color.backgroundColor = options.backgroundColor;
+			}
+		}
+
 		const response = await gmail.users.labels.update({
 			userId: "me",
 			id: labelId,
-			requestBody: { name },
+			requestBody,
 		});
 		return {
 			id: response.data.id || "",
 			name: response.data.name || "",
 			type: response.data.type || "user",
+			textColor: response.data.color?.textColor,
+			backgroundColor: response.data.color?.backgroundColor,
 		};
 	}
 

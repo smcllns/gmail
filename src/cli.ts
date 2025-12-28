@@ -59,13 +59,15 @@ GMAIL COMMANDS
       --download saves attachments to ~/.gmail-cli/attachments/
 
   gmail labels list
-      List all labels with ID, name, and type.
+      List all labels with ID, name, type, and colors.
 
-  gmail labels create <name>
-      Create a new label.
+  gmail labels create <name> [--text-color HEX] [--bg-color HEX]
+      Create a new label with optional colors.
+      Colors must be hex codes from Gmail's palette (e.g., #000000, #434343).
 
-  gmail labels edit <label> --name <newName>
-      Rename a label. Accepts label name or ID.
+  gmail labels edit <label> [--name <newName>] [--text-color HEX] [--bg-color HEX]
+      Edit a label's name and/or colors. Accepts label name or ID.
+      Colors must be hex codes from Gmail's palette.
 
   gmail labels <threadIds...> [--add L] [--remove L]
       Modify labels on threads (comma-separated for multiple).
@@ -90,7 +92,9 @@ EXAMPLES
   gmail thread 19aea1f2f3532db5 --download
   gmail labels list
   gmail labels create "My Label"
+  gmail labels create "Urgent" --text-color "#ffffff" --bg-color "#fb4c2f"
   gmail labels edit "My Label" --name "Renamed Label"
+  gmail labels edit "My Label" --bg-color "#16a765"
   gmail labels abc123 --add Work --remove UNREAD
   gmail url 19aea1f2f3532db5 19aea1f2f3532db6
 
@@ -422,6 +426,8 @@ async function handleLabels(account: string, args: string[]) {
 			add: { type: "string", short: "a" },
 			remove: { type: "string", short: "r" },
 			name: { type: "string", short: "n" },
+			"text-color": { type: "string" },
+			"bg-color": { type: "string" },
 		},
 		allowPositionals: true,
 	});
@@ -433,9 +439,9 @@ async function handleLabels(account: string, args: string[]) {
 	// labels list
 	if (positionals[0] === "list") {
 		const labels = await service.listLabels(account);
-		console.log("ID\tNAME\tTYPE");
+		console.log("ID\tNAME\tTYPE\tTEXT_COLOR\tBG_COLOR");
 		for (const l of labels) {
-			console.log(`${l.id}\t${l.name}\t${l.type}`);
+			console.log(`${l.id}\t${l.name}\t${l.type}\t${l.textColor || ""}\t${l.backgroundColor || ""}`);
 		}
 		return;
 	}
@@ -443,23 +449,40 @@ async function handleLabels(account: string, args: string[]) {
 	// labels create <name>
 	if (positionals[0] === "create") {
 		const name = positionals[1];
-		if (!name) error("Usage: gmail labels create <name>");
-		const label = await service.createLabel(account, name);
-		console.log(`Created label: ${label.name} (${label.id})`);
+		if (!name) error("Usage: gmail labels create <name> [--text-color HEX] [--bg-color HEX]");
+		const label = await service.createLabel(account, name, {
+			textColor: values["text-color"],
+			backgroundColor: values["bg-color"],
+		});
+		let output = `Created label: ${label.name} (${label.id})`;
+		if (label.textColor || label.backgroundColor) {
+			output += ` [text: ${label.textColor || "default"}, bg: ${label.backgroundColor || "default"}]`;
+		}
+		console.log(output);
 		return;
 	}
 
-	// labels edit <label> --name <newName>
+	// labels edit <label> --name <newName> [--text-color HEX] [--bg-color HEX]
 	if (positionals[0] === "edit") {
 		const labelArg = positionals[1];
-		if (!labelArg) error("Usage: gmail labels edit <label> --name <newName>");
-		if (!values.name) error("--name is required for editing a label");
+		if (!labelArg) error("Usage: gmail labels edit <label> [--name <newName>] [--text-color HEX] [--bg-color HEX]");
+		if (!values.name && !values["text-color"] && !values["bg-color"]) {
+			error("At least one of --name, --text-color, or --bg-color is required");
+		}
 
 		const { nameToId } = await service.getLabelMap(account);
 		const labelId = nameToId.get(labelArg.toLowerCase()) || labelArg;
 
-		const label = await service.updateLabel(account, labelId, values.name);
-		console.log(`Updated label: ${label.name} (${label.id})`);
+		const label = await service.updateLabel(account, labelId, {
+			name: values.name,
+			textColor: values["text-color"],
+			backgroundColor: values["bg-color"],
+		});
+		let output = `Updated label: ${label.name} (${label.id})`;
+		if (label.textColor || label.backgroundColor) {
+			output += ` [text: ${label.textColor || "default"}, bg: ${label.backgroundColor || "default"}]`;
+		}
+		console.log(output);
 		return;
 	}
 

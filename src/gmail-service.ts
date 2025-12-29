@@ -10,7 +10,7 @@ import type { EmailAccount } from "./types.js";
 type GmailThread = gmail_v1.Schema$Thread;
 type GmailMessage = gmail_v1.Schema$Message;
 
-const GMAIL_LABEL_COLORS = new Set([
+export const GMAIL_LABEL_COLORS = new Set([
 	"#000000", "#434343", "#666666", "#999999", "#cccccc", "#efefef", "#f3f3f3", "#ffffff",
 	"#fb4c2f", "#ffad47", "#fad165", "#16a766", "#43d692", "#4a86e8", "#a479e2", "#f691b3",
 	"#f6c5be", "#ffe6c7", "#fef1d1", "#b9e4d0", "#c6f3de", "#c9daf8", "#e4d7f5", "#fcdee8",
@@ -26,11 +26,15 @@ const GMAIL_LABEL_COLORS = new Set([
 	"#662e37", "#ebdbde", "#cca6ac", "#094228", "#42d692", "#16a765",
 ]);
 
-function validateLabelColor(color: string, name: string): void {
+export function validateLabelColor(color: string, name: string): void {
 	const normalized = color.toLowerCase();
 	if (!GMAIL_LABEL_COLORS.has(normalized)) {
 		throw new Error(`Invalid ${name} color: ${color}. Must be a hex code from Gmail's allowed palette.`);
 	}
+}
+
+export function resolveLabelIds(labels: string[], nameToId: Map<string, string>): string[] {
+	return labels.map((l) => nameToId.get(l.toLowerCase()) || l);
 }
 
 export interface ThreadSearchResult {

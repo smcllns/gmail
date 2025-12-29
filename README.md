@@ -107,7 +107,9 @@ gmail thread <threadId> --download  # saves attachments to ~/.gmail-cli/attachme
 ```bash
 gmail labels list
 gmail labels create "My Label"
-gmail labels <threadId> --add Receipts --remove INBOX # add label "Receipts" and archive thread
+gmail labels create "Urgent" --text "#ffffff" --bg "#fb4c2f"  # with colors
+gmail labels edit "My Label" --name "Renamed" --bg "#16a765"
+gmail labels <threadId> --add Receipts --remove INBOX  # add label "Receipts" and archive thread
 ```
 
 ### Get Gmail URLs to view messages in browser
@@ -147,13 +149,13 @@ GMAIL COMMANDS
       Get full thread. --download saves attachments.
 
   gmail labels list
-      List all labels with ID, name, and type.
+      List all labels with ID, name, type, and colors.
 
-  gmail labels create <name>
-      Create a new label.
+  gmail labels create <name> [--text HEX] [--bg HEX]
+      Create a new label with optional colors.
 
-  gmail labels edit <label> --name <newName>
-      Rename a label.
+  gmail labels edit <label> [--name <newName>] [--text HEX] [--bg HEX]
+      Edit a label's name and/or colors.
 
   gmail labels <threadIds...> [--add L] [--remove L]
       Modify labels on threads.

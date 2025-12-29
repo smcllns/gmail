@@ -305,7 +305,14 @@ async function handleSearch(account: string, args: string[]) {
 			const date = msg?.date ? new Date(msg.date).toISOString().slice(0, 16).replace("T", " ") : "";
 			const from = msg?.from?.replace(/\t/g, " ") || "";
 			const subject = msg?.subject?.replace(/\t/g, " ") || "(no subject)";
-			const labels = msg?.labelIds?.map((id) => idToName.get(id) || id).join(",") || "";
+			// Aggregate labels from all messages in thread to match Gmail web behavior
+			const allLabelIds = new Set<string>();
+			for (const m of t.messages) {
+				for (const labelId of m.labelIds || []) {
+					allLabelIds.add(labelId);
+				}
+			}
+			const labels = [...allLabelIds].map((id) => idToName.get(id) || id).join(",");
 			console.log(`${t.id}\t${date}\t${from}\t${subject}\t${labels}`);
 		}
 		if (results.nextPageToken) {

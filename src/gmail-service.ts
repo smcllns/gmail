@@ -151,13 +151,20 @@ export class GmailService {
 		return this.gmailClients.get(email)!;
 	}
 
-	async searchThreads(email: string, query: string, maxResults = 10, pageToken?: string): Promise<ThreadSearchResult> {
+	async searchThreads(
+		email: string,
+		query: string,
+		maxResults = 10,
+		pageToken?: string,
+		labelIds?: string[],
+	): Promise<ThreadSearchResult> {
 		const gmail = this.getGmailClient(email);
 		const response = await gmail.users.threads.list({
 			userId: "me",
-			q: query,
+			q: query || undefined,
 			maxResults,
 			pageToken,
+			labelIds: labelIds?.length ? labelIds : undefined,
 		});
 
 		const threads = response.data.threads || [];

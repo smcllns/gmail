@@ -38,20 +38,17 @@ CONFIG COMMANDS
 
 GMAIL COMMANDS
 
-  gmail search <query> [--max N] [--page TOKEN]
-  gmail list <query> [--max N] [--page TOKEN]
-  gmail list --query <query> [--max N] [--page TOKEN]
-      Search threads using Gmail query syntax.
+  gmail search [query] [--max N] [--page TOKEN] [--label L]
+  gmail list [query] [--max N] [--page TOKEN] [--label L]
+      Search threads. Query uses Gmail syntax, --label filters by name or ID.
       Returns: thread ID, date, sender, subject, labels.
 
-      Query examples:
-        in:inbox, in:sent, in:drafts, in:trash
-        is:unread, is:starred, is:important
-        from:sender@example.com, to:recipient@example.com
-        subject:keyword, has:attachment, filename:pdf
-        after:2024/01/01, before:2024/12/31
-        label:Work, label:UNREAD
-        Combine: "in:inbox is:unread from:boss@company.com"
+      Examples:
+        gmail search in:inbox is:unread
+        gmail search "from:boss@company.com" --max 50
+        gmail search --label INBOX                    (by label only)
+        gmail search --label Label_123 -l IMPORTANT   (multiple labels)
+        gmail search "newer_than:7d" --label Label_123
 
   gmail thread <threadId> [--download]
       Get thread with all messages.
@@ -290,14 +287,23 @@ async function handleSearch(account: string, args: string[]) {
 			max: { type: "string", short: "m" },
 			page: { type: "string", short: "p" },
 			query: { type: "string", short: "q" },
+			label: { type: "string", short: "l", multiple: true },
 		},
 		allowPositionals: true,
 	});
 
 	const query = values.query || positionals.join(" ");
-	if (!query) error("Usage: gmail search <query>");
+	const labelArgs = values.label || [];
+	if (!query && labelArgs.length === 0) error("Usage: gmail search <query> [--label LABEL]");
 
-	const results = await service.searchThreads(account, query, Number(values.max) || 10, values.page);
+	// Resolve label names to IDs
+	let labelIds: string[] = [];
+	if (labelArgs.length > 0) {
+		const { nameToId } = await service.getLabelMap(account);
+		labelIds = labelArgs.map((l) => nameToId.get(l.toLowerCase()) || l);
+	}
+
+	const results = await service.searchThreads(account, query, Number(values.max) || 10, values.page, labelIds);
 	const { idToName } = await service.getLabelMap(account);
 
 	if (results.threads.length === 0) {

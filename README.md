@@ -93,6 +93,8 @@ gmail search "in:inbox"
 gmail search "from:boss@company.com is:unread"
 gmail search "has:attachment filename:pdf after:2024/01/01"
 gmail search "label:Work subject:urgent" --max 50
+gmail search --label Label_123              # filter by label ID (from 'labels list')
+gmail search "is:unread" --label INBOX      # combine query with label filter
 ```
 
 ### Read threads
@@ -107,7 +109,9 @@ gmail thread <threadId> --download  # saves attachments to ~/.gmail-cli/attachme
 ```bash
 gmail labels list
 gmail labels create "My Label"
-gmail labels <threadId> --add Receipts --remove INBOX # add label "Receipts" and archive thread
+gmail labels create "Urgent" --text "#ffffff" --bg "#fb4c2f"  # with colors
+gmail labels edit "My Label" --name "Renamed" --bg "#16a765"
+gmail labels <threadId> --add Receipts --remove INBOX  # add label "Receipts" and archive thread
 ```
 
 ### Get Gmail URLs to view messages in browser
@@ -140,20 +144,21 @@ CONFIG COMMANDS
 
 GMAIL COMMANDS
 
-  gmail search <query> [--max N] [--page TOKEN]
-      Search threads. Returns: thread ID, date, sender, subject, labels.
+  gmail search [query] [--max N] [--page TOKEN] [--label L]
+      Search threads. Query uses Gmail syntax, --label filters by name or ID.
+      Returns: thread ID, date, sender, subject, labels.
 
   gmail thread <threadId> [--download]
       Get full thread. --download saves attachments.
 
   gmail labels list
-      List all labels with ID, name, and type.
+      List all labels with ID, name, type, and colors.
 
-  gmail labels create <name>
-      Create a new label.
+  gmail labels create <name> [--text HEX] [--bg HEX]
+      Create a new label with optional colors.
 
-  gmail labels edit <label> --name <newName>
-      Rename a label.
+  gmail labels edit <label> [--name <newName>] [--text HEX] [--bg HEX]
+      Edit a label's name and/or colors.
 
   gmail labels <threadIds...> [--add L] [--remove L]
       Modify labels on threads.

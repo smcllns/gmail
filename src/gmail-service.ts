@@ -405,20 +405,19 @@ export class GmailService {
 		},
 	): Promise<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }> {
 		const gmail = this.getGmailClient(email);
-		const requestBody: any = {};
 
-		if (options.name) {
-			requestBody.name = options.name;
-		}
+		const current = await gmail.users.labels.get({ userId: "me", id: labelId });
+		const currentColor = current.data.color;
+
+		const requestBody: any = {
+			name: options.name || current.data.name,
+		};
 
 		if (options.textColor || options.backgroundColor) {
-			requestBody.color = {};
-			if (options.textColor) {
-				requestBody.color.textColor = options.textColor;
-			}
-			if (options.backgroundColor) {
-				requestBody.color.backgroundColor = options.backgroundColor;
-			}
+			requestBody.color = {
+				textColor: options.textColor || currentColor?.textColor || "#000000",
+				backgroundColor: options.backgroundColor || currentColor?.backgroundColor || "#ffffff",
+			};
 		}
 
 		const response = await gmail.users.labels.update({

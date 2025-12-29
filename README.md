@@ -93,6 +93,8 @@ gmail search "in:inbox"
 gmail search "from:boss@company.com is:unread"
 gmail search "has:attachment filename:pdf after:2024/01/01"
 gmail search "label:Work subject:urgent" --max 50
+gmail search --label Label_123              # filter by label ID (from 'labels list')
+gmail search "is:unread" --label INBOX      # combine query with label filter
 ```
 
 ### Read threads
@@ -142,8 +144,9 @@ CONFIG COMMANDS
 
 GMAIL COMMANDS
 
-  gmail search <query> [--max N] [--page TOKEN]
-      Search threads. Returns: thread ID, date, sender, subject, labels.
+  gmail search [query] [--max N] [--page TOKEN] [--label L]
+      Search threads. Query uses Gmail syntax, --label filters by name or ID.
+      Returns: thread ID, date, sender, subject, labels.
 
   gmail thread <threadId> [--download]
       Get full thread. --download saves attachments.

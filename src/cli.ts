@@ -61,11 +61,11 @@ GMAIL COMMANDS
   gmail labels list
       List all labels with ID, name, type, and colors.
 
-  gmail labels create <name> [--text-color HEX] [--bg-color HEX]
+  gmail labels create <name> [--text HEX] [--bg HEX]
       Create a new label with optional colors.
       Colors must be hex codes from Gmail's palette (e.g., #000000, #434343).
 
-  gmail labels edit <label> [--name <newName>] [--text-color HEX] [--bg-color HEX]
+  gmail labels edit <label> [--name <newName>] [--text HEX] [--bg HEX]
       Edit a label's name and/or colors. Accepts label name or ID.
       Colors must be hex codes from Gmail's palette.
 
@@ -92,9 +92,9 @@ EXAMPLES
   gmail thread 19aea1f2f3532db5 --download
   gmail labels list
   gmail labels create "My Label"
-  gmail labels create "Urgent" --text-color "#ffffff" --bg-color "#fb4c2f"
+  gmail labels create "Urgent" --text "#ffffff" --bg "#fb4c2f"
   gmail labels edit "My Label" --name "Renamed Label"
-  gmail labels edit "My Label" --bg-color "#16a765"
+  gmail labels edit "My Label" --bg "#16a765"
   gmail labels abc123 --add Work --remove UNREAD
   gmail url 19aea1f2f3532db5 19aea1f2f3532db6
 
@@ -426,8 +426,8 @@ async function handleLabels(account: string, args: string[]) {
 			add: { type: "string", short: "a" },
 			remove: { type: "string", short: "r" },
 			name: { type: "string", short: "n" },
-			"text-color": { type: "string" },
-			"bg-color": { type: "string" },
+			text: { type: "string" },
+			bg: { type: "string" },
 		},
 		allowPositionals: true,
 	});
@@ -449,10 +449,10 @@ async function handleLabels(account: string, args: string[]) {
 	// labels create <name>
 	if (positionals[0] === "create") {
 		const name = positionals[1];
-		if (!name) error("Usage: gmail labels create <name> [--text-color HEX] [--bg-color HEX]");
+		if (!name) error("Usage: gmail labels create <name> [--text HEX] [--bg HEX]");
 		const label = await service.createLabel(account, name, {
-			textColor: values["text-color"],
-			backgroundColor: values["bg-color"],
+			textColor: values.text,
+			backgroundColor: values.bg,
 		});
 		let output = `Created label: ${label.name} (${label.id})`;
 		if (label.textColor || label.backgroundColor) {
@@ -462,12 +462,12 @@ async function handleLabels(account: string, args: string[]) {
 		return;
 	}
 
-	// labels edit <label> --name <newName> [--text-color HEX] [--bg-color HEX]
+	// labels edit <label> --name <newName> [--text HEX] [--bg HEX]
 	if (positionals[0] === "edit") {
 		const labelArg = positionals[1];
-		if (!labelArg) error("Usage: gmail labels edit <label> [--name <newName>] [--text-color HEX] [--bg-color HEX]");
-		if (!values.name && !values["text-color"] && !values["bg-color"]) {
-			error("At least one of --name, --text-color, or --bg-color is required");
+		if (!labelArg) error("Usage: gmail labels edit <label> [--name <newName>] [--text HEX] [--bg HEX]");
+		if (!values.name && !values.text && !values.bg) {
+			error("At least one of --name, --text, or --bg is required");
 		}
 
 		const { nameToId } = await service.getLabelMap(account);
@@ -475,8 +475,8 @@ async function handleLabels(account: string, args: string[]) {
 
 		const label = await service.updateLabel(account, labelId, {
 			name: values.name,
-			textColor: values["text-color"],
-			backgroundColor: values["bg-color"],
+			textColor: values.text,
+			backgroundColor: values.bg,
 		});
 		let output = `Updated label: ${label.name} (${label.id})`;
 		if (label.textColor || label.backgroundColor) {

@@ -40,26 +40,16 @@ export function decodeBase64Url(data: string): string {
 }
 
 export function decodeHtmlEntities(text: string): string {
-	const entities: Record<string, string> = {
-		"&amp;": "&",
-		"&lt;": "<",
-		"&gt;": ">",
-		"&quot;": '"',
-		"&#39;": "'",
-		"&apos;": "'",
-		"&nbsp;": " ",
-		"&mdash;": "—",
-		"&ndash;": "–",
-		"&hellip;": "…",
-		"&copy;": "©",
-		"&reg;": "®",
-		"&trade;": "™",
-	};
-	let result = text;
-	for (const [entity, char] of Object.entries(entities)) {
-		result = result.replace(new RegExp(entity, "gi"), char);
-	}
-	return result.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+	return text
+		.replace(/&amp;/gi, "&")
+		.replace(/&lt;/gi, "<")
+		.replace(/&gt;/gi, ">")
+		.replace(/&quot;/gi, '"')
+		.replace(/&#39;/gi, "'")
+		.replace(/&apos;/gi, "'")
+		.replace(/&nbsp;/gi, " ")
+		.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+		.replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 export function stripHtml(html: string): string {
@@ -120,7 +110,7 @@ export function extractAttachmentMetadata(msg: { payload?: MessagePayload }): At
 	const collectAttachments = (parts: MessagePayload[] | undefined): void => {
 		if (!parts) return;
 		for (const part of parts) {
-			if (part.filename && part.filename.length > 0) {
+			if (part.filename) {
 				attachments.push({
 					filename: part.filename,
 					mimeType: part.mimeType || "application/octet-stream",
@@ -322,7 +312,7 @@ export class GmailService {
 					to: this.getHeaderValue(msg, "to"),
 					subject: this.getHeaderValue(msg, "subject"),
 					date: this.getHeaderValue(msg, "date"),
-					hasAttachments: msg.payload?.parts?.some((part) => part.filename && part.filename.length > 0) || false,
+					hasAttachments: msg.payload?.parts?.some((part) => part.filename) || false,
 				})),
 			})),
 			nextPageToken: response.data.nextPageToken,

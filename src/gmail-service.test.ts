@@ -80,14 +80,18 @@ describe("decodeHtmlEntities", () => {
 		expect(decodeHtmlEntities("&quot;hello&quot; &apos;world&apos;")).toBe('"hello" \'world\'');
 	});
 
-	test("decodes nbsp and typographic entities", () => {
+	test("decodes nbsp", () => {
 		expect(decodeHtmlEntities("hello&nbsp;world")).toBe("hello world");
-		expect(decodeHtmlEntities("a&mdash;b&ndash;c&hellip;")).toBe("a—b–c…");
 	});
 
-	test("decodes numeric character references", () => {
+	test("decodes decimal numeric character references", () => {
 		expect(decodeHtmlEntities("&#65;&#66;&#67;")).toBe("ABC");
 		expect(decodeHtmlEntities("&#8364;")).toBe("€");
+	});
+
+	test("decodes hex numeric character references", () => {
+		expect(decodeHtmlEntities("&#x41;&#x42;&#x43;")).toBe("ABC");
+		expect(decodeHtmlEntities("&#x20AC;")).toBe("€");
 	});
 
 	test("handles case insensitivity for named entities", () => {
@@ -157,6 +161,18 @@ describe("extractBody", () => {
 			},
 		};
 		expect(extractBody(msg)).toBe("HTML"); // HTML tags stripped
+	});
+
+	test("falls back to text/html when text/plain has empty data", () => {
+		const msg = {
+			payload: {
+				parts: [
+					{ mimeType: "text/plain", body: { data: "" } },
+					{ mimeType: "text/html", body: { data: "PHA-SFRNTDwvcD4" } }, // "<p>HTML</p>"
+				],
+			},
+		};
+		expect(extractBody(msg)).toBe("HTML");
 	});
 
 	test("returns empty string when no body found", () => {

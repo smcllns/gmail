@@ -2,7 +2,7 @@
 
 import * as fs from "fs";
 import { parseArgs } from "util";
-import { GmailService } from "./gmail-service.js";
+import { GmailService, EnhancedThread } from "./gmail-service.js";
 
 const service = new GmailService();
 
@@ -351,23 +351,19 @@ async function handleThread(account: string, args: string[]) {
 			}
 		}
 	} else {
-		const thread = result as any;
+		const thread = result as EnhancedThread;
 		for (const msg of thread.messages || []) {
-			const headers = msg.payload?.headers || [];
-			const getHeader = (name: string) =>
-				headers.find((h: any) => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
 			console.log(`Message-ID: ${msg.id}`);
-			console.log(`From: ${getHeader("from")}`);
-			console.log(`To: ${getHeader("to")}`);
-			console.log(`Date: ${getHeader("date")}`);
-			console.log(`Subject: ${getHeader("subject")}`);
+			console.log(`From: ${msg.parsed.headers.from || ""}`);
+			console.log(`To: ${msg.parsed.headers.to || ""}`);
+			console.log(`Date: ${msg.parsed.headers.date || ""}`);
+			console.log(`Subject: ${msg.parsed.headers.subject || ""}`);
 			console.log("");
-			console.log(decodeBody(msg.payload));
+			console.log(msg.parsed.body);
 			console.log("");
-			const attachments = getAttachments(msg.payload);
-			if (attachments.length > 0) {
+			if (msg.parsed.attachments.length > 0) {
 				console.log("Attachments:");
-				for (const att of attachments) {
+				for (const att of msg.parsed.attachments) {
 					console.log(`  - ${att.filename} (${formatSize(att.size)}, ${att.mimeType})`);
 				}
 				console.log("");
@@ -382,47 +378,6 @@ function formatSize(bytes: number): string {
 	const units = ["B", "KB", "MB", "GB"];
 	const i = Math.floor(Math.log(bytes) / Math.log(1024));
 	return `${(bytes / 1024 ** i).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
-}
-
-function decodeBody(payload: any): string {
-	if (!payload) return "";
-	if (payload.body?.data) {
-		return Buffer.from(payload.body.data, "base64url").toString();
-	}
-	if (payload.parts) {
-		for (const part of payload.parts) {
-			if (part.mimeType === "text/plain" && part.body?.data) {
-				return Buffer.from(part.body.data, "base64url").toString();
-			}
-		}
-		for (const part of payload.parts) {
-			const nested = decodeBody(part);
-			if (nested) return nested;
-		}
-	}
-	return "";
-}
-
-interface AttachmentInfo {
-	filename: string;
-	size: number;
-	mimeType: string;
-}
-
-function getAttachments(payload: any): AttachmentInfo[] {
-	const attachments: AttachmentInfo[] = [];
-	if (!payload?.parts) return attachments;
-	for (const part of payload.parts) {
-		if (part.filename && part.body?.attachmentId) {
-			attachments.push({
-				filename: part.filename,
-				size: part.body.size || 0,
-				mimeType: part.mimeType || "application/octet-stream",
-			});
-		}
-		attachments.push(...getAttachments(part));
-	}
-	return attachments;
 }
 
 async function handleLabels(account: string, args: string[]) {

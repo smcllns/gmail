@@ -8,6 +8,16 @@
 	},
 	"main": "./dist/gmail-service.js",
 	"types": "./dist/gmail-service.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/gmail-service.d.ts",
+			"default": "./dist/gmail-service.js"
+		},
+		"./testing": {
+			"types": "./dist/mock-gmail-service.d.ts",
+			"default": "./dist/mock-gmail-service.js"
+		}
+	},
 	"files": [
 		"dist"
 	],

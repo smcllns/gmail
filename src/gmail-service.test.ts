@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { resolveLabelIds, validateLabelColor, GMAIL_LABEL_COLORS, decodeBase64Url, decodeHtmlEntities, stripHtml, extractBody, extractAttachmentMetadata } from "./gmail-service";
+import { resolveLabelIds, validateLabelColor, GMAIL_LABEL_COLORS, decodeBase64Url, decodeHtmlEntities, stripHtml, extractBody, extractAttachmentMetadata, normalizeNulls } from "./gmail-service";
 
 describe("resolveLabelIds", () => {
 	const nameToId = new Map([
@@ -294,5 +294,76 @@ describe("extractAttachmentMetadata", () => {
 
 	test("returns empty array for null payload", () => {
 		expect(extractAttachmentMetadata({})).toEqual([]);
+	});
+});
+
+describe("normalizeNulls", () => {
+	test("converts null to undefined", () => {
+		expect(normalizeNulls(null)).toBe(undefined);
+	});
+
+	test("preserves undefined", () => {
+		expect(normalizeNulls(undefined)).toBe(undefined);
+	});
+
+	test("preserves primitive values", () => {
+		expect(normalizeNulls("hello")).toBe("hello");
+		expect(normalizeNulls(42)).toBe(42);
+		expect(normalizeNulls(true)).toBe(true);
+		expect(normalizeNulls(false)).toBe(false);
+	});
+
+	test("converts null properties in objects to undefined", () => {
+		const input = { a: "value", b: null, c: 123 };
+		const result = normalizeNulls(input);
+		expect(result).toEqual({ a: "value", b: undefined, c: 123 });
+		expect("b" in result).toBe(true);
+	});
+
+	test("handles nested objects", () => {
+		const input = { outer: { inner: null, value: "test" } };
+		const result = normalizeNulls(input);
+		expect(result).toEqual({ outer: { inner: undefined, value: "test" } });
+	});
+
+	test("handles arrays with null values", () => {
+		const input = [1, null, "test", null];
+		const result = normalizeNulls(input);
+		expect(result).toEqual([1, undefined, "test", undefined]);
+	});
+
+	test("handles arrays of objects with null properties", () => {
+		const input = [{ id: 1, name: null }, { id: 2, name: "test" }];
+		const result = normalizeNulls(input);
+		expect(result).toEqual([{ id: 1, name: undefined }, { id: 2, name: "test" }]);
+	});
+
+	test("handles deeply nested structures", () => {
+		const input = {
+			level1: {
+				level2: {
+					level3: {
+						value: null,
+						array: [{ nested: null }],
+					},
+				},
+			},
+		};
+		const result = normalizeNulls(input);
+		expect(result).toEqual({
+			level1: {
+				level2: {
+					level3: {
+						value: undefined,
+						array: [{ nested: undefined }],
+					},
+				},
+			},
+		});
+	});
+
+	test("preserves empty objects and arrays", () => {
+		expect(normalizeNulls({})).toEqual({});
+		expect(normalizeNulls([])).toEqual([]);
 	});
 });

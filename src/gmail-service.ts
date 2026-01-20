@@ -61,6 +61,31 @@ export function stripHtml(html: string): string {
 	);
 }
 
+/**
+ * Recursively converts null values to undefined in an object.
+ * This normalizes Google API responses (which use null for absent values)
+ * to TypeScript conventions (which use undefined).
+ */
+export function normalizeNulls<T>(obj: T): T {
+	if (obj === null) {
+		return undefined as T;
+	}
+
+	if (Array.isArray(obj)) {
+		return obj.map((item) => normalizeNulls(item)) as T;
+	}
+
+	if (typeof obj === "object" && obj !== null) {
+		const result: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(obj)) {
+			result[key] = normalizeNulls(value);
+		}
+		return result as T;
+	}
+
+	return obj;
+}
+
 type MessagePayload = {
 	body?: { data?: string | null; size?: number | null };
 	mimeType?: string | null;
@@ -315,7 +340,7 @@ export class GmailService {
 					hasAttachments: msg.payload?.parts?.some((part) => part.filename) || false,
 				})),
 			})),
-			nextPageToken: response.data.nextPageToken,
+			nextPageToken: response.data.nextPageToken ?? undefined,
 		};
 	}
 
@@ -350,10 +375,10 @@ export class GmailService {
 				},
 			}));
 
-			return {
+			return normalizeNulls({
 				...thread,
 				messages: enhancedMessages,
-			} as EnhancedThread;
+			}) as EnhancedThread;
 		}
 
 		const attachmentsToDownload: Array<{

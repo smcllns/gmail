@@ -33,6 +33,85 @@ export function validateLabelColor(color: string, name: string): void {
 	}
 }
 
+export function decodeBase64Url(data: string): string {
+	if (!data) return "";
+	const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
+	return Buffer.from(base64, "base64").toString("utf-8");
+}
+
+export function stripHtml(html: string): string {
+	return html
+		.replace(/<[^>]*>/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+type MessagePayload = {
+	body?: { data?: string | null };
+	mimeType?: string | null;
+	parts?: MessagePayload[];
+	filename?: string | null;
+};
+
+export function extractBody(msg: { payload?: MessagePayload }): string {
+	if (!msg.payload) return "";
+
+	if (msg.payload.body?.data) {
+		return decodeBase64Url(msg.payload.body.data);
+	}
+
+	const findTextPart = (parts: MessagePayload[] | undefined, mimeType: string): string | undefined => {
+		if (!parts) return undefined;
+		for (const part of parts) {
+			if (part.mimeType === mimeType && part.body?.data) {
+				return decodeBase64Url(part.body.data);
+			}
+			if (part.parts) {
+				const nested = findTextPart(part.parts, mimeType);
+				if (nested) return nested;
+			}
+		}
+		return undefined;
+	};
+
+	const plainText = findTextPart(msg.payload.parts, "text/plain");
+	if (plainText) return plainText;
+
+	const htmlText = findTextPart(msg.payload.parts, "text/html");
+	if (htmlText) return stripHtml(htmlText);
+
+	return "";
+}
+
+export interface AttachmentMetadata {
+	filename: string;
+	mimeType: string;
+	size: number;
+}
+
+export function extractAttachmentMetadata(msg: { payload?: MessagePayload }): AttachmentMetadata[] {
+	const attachments: AttachmentMetadata[] = [];
+
+	const collectAttachments = (parts: MessagePayload[] | undefined): void => {
+		if (!parts) return;
+		for (const part of parts) {
+			if (part.filename && part.filename.length > 0) {
+				attachments.push({
+					filename: part.filename,
+					mimeType: part.mimeType || "application/octet-stream",
+					size: (part as any).body?.size || 0,
+				});
+			}
+			if (part.parts) {
+				collectAttachments(part.parts);
+			}
+		}
+	};
+
+	collectAttachments(msg.payload?.parts);
+	return attachments;
+}
+
 export function resolveLabelIds(labels: string[], nameToId: Map<string, string>): string[] {
 	return labels.map((l) => nameToId.get(l.toLowerCase()) || l);
 }
@@ -79,6 +158,30 @@ export interface LabelOperationResult {
 	threadId: string;
 	success: boolean;
 	error?: string;
+}
+
+export interface ParsedHeaders {
+	from?: string;
+	to?: string;
+	subject?: string;
+	date?: string;
+	replyTo?: string;
+	listUnsubscribe?: string;
+	xMailer?: string;
+}
+
+export interface ParsedMessageContent {
+	body: string;
+	headers: ParsedHeaders;
+	attachments: AttachmentMetadata[];
+}
+
+export interface EnhancedMessage extends GmailMessage {
+	parsed: ParsedMessageContent;
+}
+
+export interface EnhancedThread extends Omit<GmailThread, "messages"> {
+	messages?: EnhancedMessage[];
 }
 
 export class GmailService {
@@ -205,7 +308,7 @@ export class GmailService {
 		email: string,
 		threadId: string,
 		downloadAttachments = false,
-	): Promise<GmailThread | DownloadedAttachment[]> {
+	): Promise<EnhancedThread | DownloadedAttachment[]> {
 		const gmail = this.getGmailClient(email);
 		const response = await gmail.users.threads.get({
 			userId: "me",
@@ -215,7 +318,27 @@ export class GmailService {
 		const thread = response.data;
 
 		if (!downloadAttachments) {
-			return thread;
+			const enhancedMessages: EnhancedMessage[] = (thread.messages || []).map((msg: GmailMessage) => ({
+				...msg,
+				parsed: {
+					body: extractBody(msg),
+					headers: {
+						from: this.getHeaderValue(msg, "From"),
+						to: this.getHeaderValue(msg, "To"),
+						subject: this.getHeaderValue(msg, "Subject"),
+						date: this.getHeaderValue(msg, "Date"),
+						replyTo: this.getHeaderValue(msg, "Reply-To"),
+						listUnsubscribe: this.getHeaderValue(msg, "List-Unsubscribe"),
+						xMailer: this.getHeaderValue(msg, "X-Mailer"),
+					},
+					attachments: extractAttachmentMetadata(msg),
+				},
+			}));
+
+			return {
+				...thread,
+				messages: enhancedMessages,
+			} as EnhancedThread;
 		}
 
 		const attachmentsToDownload: Array<{

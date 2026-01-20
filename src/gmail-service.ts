@@ -39,15 +39,40 @@ export function decodeBase64Url(data: string): string {
 	return Buffer.from(base64, "base64").toString("utf-8");
 }
 
+export function decodeHtmlEntities(text: string): string {
+	const entities: Record<string, string> = {
+		"&amp;": "&",
+		"&lt;": "<",
+		"&gt;": ">",
+		"&quot;": '"',
+		"&#39;": "'",
+		"&apos;": "'",
+		"&nbsp;": " ",
+		"&mdash;": "—",
+		"&ndash;": "–",
+		"&hellip;": "…",
+		"&copy;": "©",
+		"&reg;": "®",
+		"&trade;": "™",
+	};
+	let result = text;
+	for (const [entity, char] of Object.entries(entities)) {
+		result = result.replace(new RegExp(entity, "gi"), char);
+	}
+	return result.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+}
+
 export function stripHtml(html: string): string {
-	return html
-		.replace(/<[^>]*>/g, " ")
-		.replace(/\s+/g, " ")
-		.trim();
+	return decodeHtmlEntities(
+		html
+			.replace(/<[^>]*>/g, " ")
+			.replace(/\s+/g, " ")
+			.trim()
+	);
 }
 
 type MessagePayload = {
-	body?: { data?: string | null };
+	body?: { data?: string | null; size?: number | null };
 	mimeType?: string | null;
 	parts?: MessagePayload[];
 	filename?: string | null;
@@ -99,7 +124,7 @@ export function extractAttachmentMetadata(msg: { payload?: MessagePayload }): At
 				attachments.push({
 					filename: part.filename,
 					mimeType: part.mimeType || "application/octet-stream",
-					size: (part as any).body?.size || 0,
+					size: part.body?.size || 0,
 				});
 			}
 			if (part.parts) {

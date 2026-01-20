@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { resolveLabelIds, validateLabelColor, GMAIL_LABEL_COLORS, decodeBase64Url, stripHtml, extractBody, extractAttachmentMetadata } from "./gmail-service";
+import { resolveLabelIds, validateLabelColor, GMAIL_LABEL_COLORS, decodeBase64Url, decodeHtmlEntities, stripHtml, extractBody, extractAttachmentMetadata } from "./gmail-service";
 
 describe("resolveLabelIds", () => {
 	const nameToId = new Map([
@@ -71,6 +71,34 @@ describe("decodeBase64Url", () => {
 	});
 });
 
+describe("decodeHtmlEntities", () => {
+	test("decodes common named entities", () => {
+		expect(decodeHtmlEntities("&amp; &lt; &gt;")).toBe("& < >");
+	});
+
+	test("decodes quote entities", () => {
+		expect(decodeHtmlEntities("&quot;hello&quot; &apos;world&apos;")).toBe('"hello" \'world\'');
+	});
+
+	test("decodes nbsp and typographic entities", () => {
+		expect(decodeHtmlEntities("hello&nbsp;world")).toBe("hello world");
+		expect(decodeHtmlEntities("a&mdash;b&ndash;c&hellip;")).toBe("a—b–c…");
+	});
+
+	test("decodes numeric character references", () => {
+		expect(decodeHtmlEntities("&#65;&#66;&#67;")).toBe("ABC");
+		expect(decodeHtmlEntities("&#8364;")).toBe("€");
+	});
+
+	test("handles case insensitivity for named entities", () => {
+		expect(decodeHtmlEntities("&AMP; &LT;")).toBe("& <");
+	});
+
+	test("preserves text without entities", () => {
+		expect(decodeHtmlEntities("plain text")).toBe("plain text");
+	});
+});
+
 describe("stripHtml", () => {
 	test("removes HTML tags", () => {
 		expect(stripHtml("<p>Hello</p>")).toBe("Hello");
@@ -90,6 +118,11 @@ describe("stripHtml", () => {
 
 	test("preserves plain text", () => {
 		expect(stripHtml("No HTML here")).toBe("No HTML here");
+	});
+
+	test("decodes HTML entities after stripping tags", () => {
+		expect(stripHtml("<p>Tom &amp; Jerry</p>")).toBe("Tom & Jerry");
+		expect(stripHtml("<span>&lt;script&gt;</span>")).toBe("<script>");
 	});
 });
 

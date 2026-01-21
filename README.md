@@ -180,51 +180,43 @@ DATA STORAGE
   ~/.gmail-cli/attachments/       Downloaded attachments
 ```
 
-## How to use with Claude Code
+## Programmatic Usage
 
-Here's an abbreviated example of how I use this with Claude Code:
+### GmailService
 
-### 1. Create a `gmail` skill
+```typescript
+import { GmailService } from '@smcllns/gmail';
 
-Show Claude how to use the CLI (independent of your specific preferences). The full content is similar to this README. Abbreviated:
-
-```yaml
-# .claude/skills/gmail/SKILL.md
----
-name: gmail
-description: Fetches and manages Gmail using @smcllns/gmail. Use when the user asks about their email, wants an email summary, or needs to search/read/archive messages.
-allowed-tools: Bash(bunx @smcllns/gmail:*)
----
-# ...
-
-# Fetch first 25 unread messages in inbox
-bunx @smcllns/gmail search "in:inbox is:unread" --max 25
-
-# ...
+const gmail = new GmailService();
+const thread = await gmail.getThread('you@gmail.com', 'threadId123');
 ```
 
-### 2. Create an `/email` command
+Note: `getThread()` normalizes Google API responses, converting `null` values to `undefined`.
 
-This contains all my subjective instructions and preferences for how to organize my inbox and what I want done. An abbreviated version:
+### MockGmailService
 
-```yaml
-# .claude/commands/email.md
----
-description: Read recent emails, organize into categories and write email reports to Obsidian
-allowed-tools: Skill(gmail)
----
-You are an executive assistant. Your task is to process email so it is efficient to review and take action.
+A mock implementation for testing code that depends on GmailService:
 
-Every email gets exactly one category
+```typescript
+import { MockGmailService } from '@smcllns/gmail/testing';
 
-| Category | What belongs here |
-|----------|-------------------|
-| ⚠️ **Action** | Decision needed or response required |
-| 📅 **Calendar** | Appointments, RSVPs, event reminders |
-| 📦 **Packages** | Shipping, returns, food delivery |
+const mock = new MockGmailService();
 
-What to elevate to my inbox for attention (everything else skips inbox)
-- ...
+// Configure test data
+mock.setThread('thread123', { id: 'thread123', historyId: '1', messages: [] });
+mock.setSearchResults('in:inbox', { threads: [] });
+mock.setLabels([{ id: 'Label_1', name: 'Work', type: 'user' }]);
+
+// Simulate errors
+mock.setError('getThread', new Error('API Error'));
+mock.setError('searchThreads', new Error('Rate limited'), true); // once only
+
+// Inspect calls after test
+expect(mock.calls.searchThreads).toHaveLength(1);
+expect(mock.calls.searchThreads[0].args[1]).toBe('in:inbox');
+
+// Reset between tests
+mock.reset();
 ```
 
 ## License

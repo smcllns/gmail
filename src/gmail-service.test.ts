@@ -101,6 +101,19 @@ describe("GmailService programmatic tokens", () => {
 			service.addGmailAccount("user@example.com", "client", "secret"),
 		).rejects.toThrow("Account 'user@example.com' already exists");
 	});
+
+	test("unknown email throws without triggering filesystem access", () => {
+		const service = new GmailService({ accounts: [testAccount] });
+		// Accessing a typo'd email should throw "not found" without
+		// creating ~/.gmail-cli/ via lazy AccountStorage init.
+		try {
+			(service as any).getGmailClient("typo@example.com");
+		} catch (e: any) {
+			expect(e.message).toBe("Account 'typo@example.com' not found");
+		}
+		// _accountStorage should not have been initialized
+		expect((service as any)._accountStorage).toBeUndefined();
+	});
 });
 
 describe("resolveLabelIds", () => {

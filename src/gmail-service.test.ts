@@ -116,6 +116,45 @@ describe("GmailService programmatic tokens", () => {
 	});
 });
 
+describe("GmailService configDir", () => {
+	const testAccount: EmailAccount = {
+		email: "user@example.com",
+		oauth2: {
+			clientId: "test-client-id",
+			clientSecret: "test-client-secret",
+			refreshToken: "test-refresh-token",
+		},
+	};
+
+	test("configDir resolves relative paths to absolute", () => {
+		const service = new GmailService({ configDir: "./my-config" });
+		expect((service as any).configDir).toBe(require("path").resolve("./my-config"));
+	});
+
+	test("configDir undefined when not provided", () => {
+		const service = new GmailService();
+		expect((service as any).configDir).toBeUndefined();
+	});
+
+	test("configDir threads through to AccountStorage on lazy init", () => {
+		const configDir = "/tmp/test-gmail-configdir-thread";
+		const service = new GmailService({ configDir });
+		// Trigger lazy AccountStorage initialization
+		const storage = (service as any).accountStorage;
+		expect(storage.configDir).toBe(configDir);
+	});
+
+	test("configDir works alongside accounts option", () => {
+		const configDir = "/tmp/test-gmail-configdir-combo";
+		const service = new GmailService({ configDir, accounts: [testAccount] });
+		const accounts = service.listAccounts();
+		expect(accounts).toHaveLength(1);
+		expect(accounts[0].email).toBe("user@example.com");
+		// Verify configDir is stored, not just accounts
+		expect((service as any).configDir).toBe(configDir);
+	});
+});
+
 describe("resolveLabelIds", () => {
 	const nameToId = new Map([
 		["inbox", "INBOX"],

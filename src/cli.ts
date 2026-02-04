@@ -4,7 +4,7 @@ import * as fs from "fs";
 import { parseArgs } from "util";
 import { GmailService, EnhancedThread } from "./gmail-service.js";
 
-const service = new GmailService();
+let service!: GmailService;
 
 // Custom error class for restricted operations
 class RestrictedOperationError extends Error {
@@ -23,6 +23,7 @@ USAGE
   gmail config <action>                Configuration management
   gmail <command> [options]            Gmail operations (uses default account)
   gmail --account <email> <command>    Gmail operations with specific account
+  gmail --config-dir <path> <command>  Use custom config directory (default: ~/.gmail-cli/)
 
 ACCOUNT COMMANDS
 
@@ -53,7 +54,7 @@ GMAIL COMMANDS
   gmail thread <threadId> [--download]
       Get thread with all messages.
       Shows: Message-ID, headers, body, attachments.
-      --download saves attachments to ~/.gmail-cli/attachments/
+      --download saves attachments to <config-dir>/attachments/
 
   gmail labels list
       List all labels with ID, name, type, and colors.
@@ -95,12 +96,12 @@ EXAMPLES
   gmail labels abc123 --add Work --remove UNREAD
   gmail url 19aea1f2f3532db5 19aea1f2f3532db6
 
-DATA STORAGE
+DATA STORAGE (default: ~/.gmail-cli/, override with --config-dir)
 
-  ~/.gmail-cli/credentials.json   OAuth client credentials
-  ~/.gmail-cli/accounts.json      Account tokens
-  ~/.gmail-cli/config.json        CLI configuration (default account)
-  ~/.gmail-cli/attachments/       Downloaded attachments`);
+  <config-dir>/credentials.json   OAuth client credentials
+  <config-dir>/accounts.json      Account tokens
+  <config-dir>/config.json        CLI configuration (default account)
+  <config-dir>/attachments/       Downloaded attachments`);
 	process.exit(1);
 }
 
@@ -131,6 +132,17 @@ async function main() {
 	if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
 		usage();
 	}
+
+	// Extract --config-dir before creating service
+	let configDir: string | undefined;
+	const configDirIndex = args.indexOf("--config-dir");
+	if (configDirIndex !== -1) {
+		configDir = args[configDirIndex + 1];
+		if (!configDir) error("--config-dir requires a path argument");
+		args.splice(configDirIndex, 2);
+	}
+
+	service = new GmailService(configDir ? { configDir } : undefined);
 
 	const first = args[0];
 	const rest = args.slice(1);

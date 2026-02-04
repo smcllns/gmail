@@ -3,29 +3,34 @@ import * as os from "os";
 import * as path from "path";
 import type { EmailAccount } from "./types.js";
 
-const CONFIG_DIR = path.join(os.homedir(), ".gmail-cli");
-const ACCOUNTS_FILE = path.join(CONFIG_DIR, "accounts.json");
-const CREDENTIALS_FILE = path.join(CONFIG_DIR, "credentials.json");
-const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+export const DEFAULT_CONFIG_DIR = path.join(os.homedir(), ".gmail-cli");
 
 export class AccountStorage {
+	readonly configDir: string;
+	private readonly accountsFile: string;
+	private readonly credentialsFile: string;
+	private readonly configFile: string;
 	private accounts: Map<string, EmailAccount> = new Map();
 
-	constructor() {
+	constructor(configDir?: string) {
+		this.configDir = configDir ?? DEFAULT_CONFIG_DIR;
+		this.accountsFile = path.join(this.configDir, "accounts.json");
+		this.credentialsFile = path.join(this.configDir, "credentials.json");
+		this.configFile = path.join(this.configDir, "config.json");
 		this.ensureConfigDir();
 		this.loadAccounts();
 	}
 
 	private ensureConfigDir(): void {
-		if (!fs.existsSync(CONFIG_DIR)) {
-			fs.mkdirSync(CONFIG_DIR, { recursive: true });
+		if (!fs.existsSync(this.configDir)) {
+			fs.mkdirSync(this.configDir, { recursive: true });
 		}
 	}
 
 	private loadAccounts(): void {
-		if (fs.existsSync(ACCOUNTS_FILE)) {
+		if (fs.existsSync(this.accountsFile)) {
 			try {
-				const data = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, "utf8"));
+				const data = JSON.parse(fs.readFileSync(this.accountsFile, "utf8"));
 				for (const account of data) {
 					this.accounts.set(account.email, account);
 				}
@@ -36,7 +41,7 @@ export class AccountStorage {
 	}
 
 	private saveAccounts(): void {
-		fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(Array.from(this.accounts.values()), null, 2));
+		fs.writeFileSync(this.accountsFile, JSON.stringify(Array.from(this.accounts.values()), null, 2));
 	}
 
 	addAccount(account: EmailAccount): void {
@@ -63,13 +68,13 @@ export class AccountStorage {
 	}
 
 	setCredentials(clientId: string, clientSecret: string): void {
-		fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify({ clientId, clientSecret }, null, 2));
+		fs.writeFileSync(this.credentialsFile, JSON.stringify({ clientId, clientSecret }, null, 2));
 	}
 
 	getCredentials(): { clientId: string; clientSecret: string } | null {
-		if (!fs.existsSync(CREDENTIALS_FILE)) return null;
+		if (!fs.existsSync(this.credentialsFile)) return null;
 		try {
-			return JSON.parse(fs.readFileSync(CREDENTIALS_FILE, "utf8"));
+			return JSON.parse(fs.readFileSync(this.credentialsFile, "utf8"));
 		} catch {
 			return null;
 		}
@@ -78,7 +83,7 @@ export class AccountStorage {
 	setDefaultAccount(email: string): void {
 		const config = this.loadConfig();
 		config.defaultAccount = email;
-		fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+		fs.writeFileSync(this.configFile, JSON.stringify(config, null, 2));
 	}
 
 	getDefaultAccount(): string | null {
@@ -89,13 +94,13 @@ export class AccountStorage {
 	clearDefaultAccount(): void {
 		const config = this.loadConfig();
 		delete config.defaultAccount;
-		fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+		fs.writeFileSync(this.configFile, JSON.stringify(config, null, 2));
 	}
 
 	private loadConfig(): { defaultAccount?: string } {
-		if (!fs.existsSync(CONFIG_FILE)) return {};
+		if (!fs.existsSync(this.configFile)) return {};
 		try {
-			return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+			return JSON.parse(fs.readFileSync(this.configFile, "utf8"));
 		} catch {
 			return {};
 		}

@@ -221,6 +221,22 @@ When only using in-memory accounts, `GmailService` never touches the filesystem 
 
 Note: `getThread()` normalizes Google API responses, converting `null` values to `undefined`.
 
+#### Available methods
+
+| Method | Description |
+| --- | --- |
+| `searchThreads(email, query, maxResults?, pageToken?, labelIds?)` | Search threads using [Gmail query syntax](https://support.google.com/mail/answer/7190) |
+| `getThread(email, threadId, downloadAttachments?)` | Get full thread with parsed message content |
+| `modifyLabels(email, threadIds, addLabels?, removeLabels?)` | Add/remove labels on threads |
+| `listLabels(email)` | List all labels with IDs, names, types, and colors |
+| `createLabel(email, name, options?)` | Create a label with optional colors |
+| `updateLabel(email, labelId, options?)` | Update a label's name or colors |
+| `getLabelMap(email)` | Get bidirectional label name/ID lookup maps |
+| `downloadMessageAttachments(email, messageId)` | Download all attachments from a message |
+| `setAccountTokens(account)` | Add or update account tokens in memory |
+| `listAccounts()` | List all configured accounts |
+| `deleteAccount(email)` | Remove an account |
+
 ### MockGmailService
 
 A mock implementation for testing code that depends on GmailService:

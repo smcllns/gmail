@@ -1,9 +1,8 @@
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import { OAuth2Client } from "google-auth-library";
 import { type gmail_v1, google } from "googleapis";
-import { AccountStorage } from "./account-storage.js";
+import { AccountStorage, DEFAULT_CONFIG_DIR } from "./account-storage.js";
 import { GmailOAuthFlow } from "./gmail-oauth-flow.js";
 import type { EmailAccount } from "./types.js";
 export type { EmailAccount } from "./types.js";
@@ -227,14 +226,19 @@ export interface EnhancedThread extends Omit<GmailThread, "messages"> {
 
 export interface GmailServiceOptions {
 	accounts?: EmailAccount[];
+	configDir?: string;
 }
 
 export class GmailService {
 	private _accountStorage?: AccountStorage;
+	private configDir?: string;
 	private gmailClients: Map<string, any> = new Map();
 	private inMemoryAccounts: Map<string, EmailAccount> = new Map();
 
 	constructor(options?: GmailServiceOptions) {
+		if (options?.configDir) {
+			this.configDir = path.resolve(options.configDir);
+		}
 		if (options?.accounts) {
 			for (const account of options.accounts) {
 				this.inMemoryAccounts.set(account.email, account);
@@ -243,13 +247,13 @@ export class GmailService {
 	}
 
 	/**
-	 * Lazily initialized — accessing this property triggers filesystem setup (~/.gmail-cli/).
+	 * Lazily initialized — accessing this property triggers filesystem setup.
 	 * Methods that use this are inherently disk-based (addGmailAccount, setCredentials, etc.).
 	 * In-memory-only usage (constructor accounts + setAccountTokens) avoids this path.
 	 */
 	private get accountStorage(): AccountStorage {
 		if (!this._accountStorage) {
-			this._accountStorage = new AccountStorage();
+			this._accountStorage = new AccountStorage(this.configDir);
 		}
 		return this._accountStorage;
 	}
@@ -488,7 +492,8 @@ export class GmailService {
 		const gmail = this.getGmailClient(email);
 		const results: AttachmentDownloadResult[] = [];
 
-		const attachmentDir = path.join(os.homedir(), ".gmail-cli", "attachments");
+		const baseDir = this._accountStorage?.configDir ?? this.configDir ?? DEFAULT_CONFIG_DIR;
+		const attachmentDir = path.join(baseDir, "attachments");
 		if (!fs.existsSync(attachmentDir)) {
 			fs.mkdirSync(attachmentDir, { recursive: true });
 		}

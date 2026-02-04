@@ -70,8 +70,6 @@ gmail search "in:inbox is:unread" --max 10
 ### 2. Configure the CLI
 
 ```bash
-# Config saved in ~/.gmail-cli/
-
 # Set up OAuth Client credentials (once per machine)
 gmail accounts credentials ~/path/to/credentials.json
 
@@ -120,6 +118,25 @@ gmail labels <threadId> --add Receipts --remove INBOX  # add label "Receipts" an
 gmail url <threadId>
 ```
 
+## Custom config directory
+
+By default, credentials, accounts, and attachments are stored in `~/.gmail-cli/`. Use `--config-dir` to store them in a project-local directory instead:
+
+```bash
+# All commands use the custom directory for that invocation
+gmail --config-dir ./.gmail accounts credentials ~/creds.json
+gmail --config-dir ./.gmail accounts add you@gmail.com
+gmail --config-dir ./.gmail search "in:inbox"
+```
+
+Programmatic usage:
+
+```typescript
+const gmail = new GmailService({ configDir: './.gmail' });
+```
+
+Relative paths are resolved to absolute. The directory is created automatically on first use.
+
 ## Full command reference
 
 ```
@@ -129,6 +146,7 @@ USAGE
   gmail config <action>                Configuration management
   gmail <command> [options]            Gmail operations (uses default account)
   gmail --account <email> <command>    Gmail operations with specific account
+  gmail --config-dir <path> <command>  Use custom config directory (default: ~/.gmail-cli/)
 
 ACCOUNT COMMANDS
 
@@ -149,7 +167,7 @@ GMAIL COMMANDS
       Returns: thread ID, date, sender, subject, labels.
 
   gmail thread <threadId> [--download]
-      Get full thread. --download saves attachments.
+      Get full thread. --download saves attachments to <config-dir>/attachments/.
 
   gmail labels list
       List all labels with ID, name, type, and colors.
@@ -172,12 +190,12 @@ RESTRICTED (returns guidance to use Gmail web UI)
   gmail send
   gmail delete
 
-DATA STORAGE
+DATA STORAGE (default: ~/.gmail-cli/, override with --config-dir)
 
-  ~/.gmail-cli/credentials.json   OAuth client credentials
-  ~/.gmail-cli/accounts.json      Account tokens
-  ~/.gmail-cli/config.json        CLI configuration
-  ~/.gmail-cli/attachments/       Downloaded attachments
+  <config-dir>/credentials.json   OAuth client credentials
+  <config-dir>/accounts.json      Account tokens
+  <config-dir>/config.json        CLI configuration
+  <config-dir>/attachments/       Downloaded attachments
 ```
 
 ## Programmatic Usage
@@ -187,7 +205,6 @@ DATA STORAGE
 ```typescript
 import { GmailService } from '@smcllns/gmail';
 
-// File-based accounts (reads from ~/.gmail-cli/)
 const gmail = new GmailService();
 const thread = await gmail.getThread('you@gmail.com', 'threadId123');
 ```

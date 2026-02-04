@@ -232,26 +232,10 @@ Note: `getThread()` normalizes Google API responses, converting `null` values to
 | `createLabel(email, name, options?)` | Create a label with optional colors |
 | `updateLabel(email, labelId, options?)` | Update a label's name or colors |
 | `getLabelMap(email)` | Get bidirectional label name/ID lookup maps |
-| `resolveLabelIds(labels, nameToId)` | Resolve label names to IDs (case-insensitive) |
-| `downloadAttachments(email, attachments)` | Download attachments with local caching |
 | `downloadMessageAttachments(email, messageId)` | Download all attachments from a message |
 | `setAccountTokens(account)` | Add or update account tokens in memory |
 | `listAccounts()` | List all configured accounts |
 | `deleteAccount(email)` | Remove an account |
-
-#### Exported utilities
-
-These functions are exported from the main package for working with Gmail message data:
-
-| Function | Description |
-| --- | --- |
-| `extractBody(msg)` | Extract text body from a Gmail message (prefers text/plain, falls back to stripped HTML) |
-| `extractAttachmentMetadata(msg)` | Collect attachment filenames, MIME types, and sizes from a message |
-| `stripHtml(html)` | Remove HTML tags and decode entities |
-| `decodeBase64Url(data)` | Decode base64url-encoded Gmail content |
-| `normalizeNulls(obj)` | Convert `null` values to `undefined` (Google API convention → TypeScript convention) |
-| `validateLabelColor(color, name)` | Validate a hex color against Gmail's allowed palette |
-| `GMAIL_LABEL_COLORS` | `Set<string>` of all valid Gmail label color hex codes |
 
 ### MockGmailService
 

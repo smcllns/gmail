@@ -283,7 +283,7 @@ async function handleAccounts(args: string[]) {
 			const scopes = readonly ? READONLY_GMAIL_SCOPES : DEFAULT_GMAIL_SCOPES;
 			await service.addGmailAccount(email, creds.clientId, creds.clientSecret, manual, {
 				scopes,
-				includeGrantedScopes: true,
+				includeGrantedScopes: false,
 			});
 			console.log(`Account '${email}' added${readonly ? " (readonly)" : ""}`);
 
@@ -309,7 +309,7 @@ async function handleAccounts(args: string[]) {
 			}
 			await service.updateGmailAccount(email, creds.clientId, creds.clientSecret, manual, {
 				scopes: DEFAULT_GMAIL_SCOPES,
-				includeGrantedScopes: true,
+				includeGrantedScopes: false,
 				prompt: "consent",
 			});
 			console.log(`Account '${email}' upgraded to live access`);
@@ -449,7 +449,7 @@ function sanitizeSingleLine(value: string): string {
 }
 
 function describeAccountScopes(scopes?: string[]): string {
-	if (!scopes || scopes.length === 0) return "";
+	if (!scopes || scopes.length === 0) return " (unknown)";
 	const hasModify = scopes.includes(GMAIL_MODIFY_SCOPE);
 	const hasReadonly = scopes.includes(GMAIL_READONLY_SCOPE);
 	if (hasReadonly && !hasModify) return " (readonly)";
@@ -620,7 +620,8 @@ function handleUrl(account: string, args: string[]) {
 
 	for (const id of args) {
 		const safeId = sanitizeSingleLine(id);
-		const url = `https://mail.google.com/mail/?authuser=${encodeURIComponent(account)}#all/${id}`;
+		const encodedId = encodeURIComponent(safeId);
+		const url = `https://mail.google.com/mail/?authuser=${encodeURIComponent(account)}#all/${encodedId}`;
 		console.log(`${safeId}\t${url}`);
 	}
 }

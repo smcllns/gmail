@@ -389,7 +389,11 @@ export class GmailService {
 
 	private ensureAnyScope(email: string, required: string[], action: string): void {
 		const account = this.getAccount(email);
-		if (!account.scopes || account.scopes.length === 0) return;
+		if (!account.scopes || account.scopes.length === 0) {
+			throw new Error(
+				`Account '${email}' has no recorded OAuth scopes. Re-authorize or provide account.scopes to grant ${required.join(", ")} for ${action}.`,
+			);
+		}
 		const hasScope = required.some((scope) => account.scopes?.includes(scope));
 		if (!hasScope) {
 			throw new Error(`Insufficient OAuth scope for ${action}. Required: ${required.join(", ")}.`);
@@ -566,6 +570,15 @@ export class GmailService {
 		const attachmentDir = path.join(baseDir, "attachments");
 		if (!fs.existsSync(attachmentDir)) {
 			fs.mkdirSync(attachmentDir, { recursive: true, mode: 0o700 });
+		} else {
+			const stat = fs.statSync(attachmentDir);
+			if (!stat.isDirectory()) {
+				throw new Error(`Attachment path is not a directory: ${attachmentDir}`);
+			}
+			try {
+				fs.chmodSync(attachmentDir, 0o700);
+			} catch {
+			}
 		}
 
 		for (const attachment of attachments) {

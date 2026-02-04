@@ -24,6 +24,15 @@ export class AccountStorage {
 	private ensureConfigDir(): void {
 		if (!fs.existsSync(this.configDir)) {
 			fs.mkdirSync(this.configDir, { recursive: true, mode: 0o700 });
+			return;
+		}
+		const stat = fs.statSync(this.configDir);
+		if (!stat.isDirectory()) {
+			throw new Error(`Config directory path is not a directory: ${this.configDir}`);
+		}
+		try {
+			fs.chmodSync(this.configDir, 0o700);
+		} catch {
 		}
 	}
 

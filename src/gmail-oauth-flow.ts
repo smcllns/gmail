@@ -41,7 +41,7 @@ export class GmailOAuthFlow {
 	constructor(clientId: string, clientSecret: string, options?: GmailOAuthOptions) {
 		this.oauth2Client = new OAuth2Client(clientId, clientSecret);
 		this.scopes = options?.scopes ?? DEFAULT_GMAIL_SCOPES;
-		this.includeGrantedScopes = options?.includeGrantedScopes ?? true;
+		this.includeGrantedScopes = options?.includeGrantedScopes ?? false;
 		this.prompt = options?.prompt;
 	}
 

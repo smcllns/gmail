@@ -6,6 +6,7 @@ import { type gmail_v1, google } from "googleapis";
 import { AccountStorage } from "./account-storage.js";
 import { GmailOAuthFlow } from "./gmail-oauth-flow.js";
 import type { EmailAccount } from "./types.js";
+export type { EmailAccount } from "./types.js";
 
 type GmailThread = gmail_v1.Schema$Thread;
 type GmailMessage = gmail_v1.Schema$Message;
@@ -224,12 +225,44 @@ export interface EnhancedThread extends Omit<GmailThread, "messages"> {
 	messages?: EnhancedMessage[];
 }
 
-export class GmailService {
-	private accountStorage = new AccountStorage();
-	private gmailClients: Map<string, any> = new Map();
+export interface GmailServiceOptions {
+	accounts?: EmailAccount[];
+}
 
+export class GmailService {
+	private _accountStorage?: AccountStorage;
+	private gmailClients: Map<string, any> = new Map();
+	private inMemoryAccounts: Map<string, EmailAccount> = new Map();
+
+	constructor(options?: GmailServiceOptions) {
+		if (options?.accounts) {
+			for (const account of options.accounts) {
+				this.inMemoryAccounts.set(account.email, account);
+			}
+		}
+	}
+
+	/**
+	 * Lazily initialized — accessing this property triggers filesystem setup (~/.gmail-cli/).
+	 * Methods that use this are inherently disk-based (addGmailAccount, setCredentials, etc.).
+	 * In-memory-only usage (constructor accounts + setAccountTokens) avoids this path.
+	 */
+	private get accountStorage(): AccountStorage {
+		if (!this._accountStorage) {
+			this._accountStorage = new AccountStorage();
+		}
+		return this._accountStorage;
+	}
+
+	setAccountTokens(account: EmailAccount): void {
+		this.inMemoryAccounts.set(account.email, account);
+		this.gmailClients.delete(account.email);
+	}
+
+	// This method always uses disk-backed storage (runs OAuth flow, persists refresh token).
+	// For in-memory token management, use setAccountTokens() instead.
 	async addGmailAccount(email: string, clientId: string, clientSecret: string, manual = false): Promise<void> {
-		if (this.accountStorage.hasAccount(email)) {
+		if (this.inMemoryAccounts.has(email) || this.accountStorage.hasAccount(email)) {
 			throw new Error(`Account '${email}' already exists`);
 		}
 
@@ -246,11 +279,24 @@ export class GmailService {
 
 	deleteAccount(email: string): boolean {
 		this.gmailClients.delete(email);
-		return this.accountStorage.deleteAccount(email);
+		// Remove from both stores — account may exist in either or both
+		const deletedInMemory = this.inMemoryAccounts.delete(email);
+		const deletedFromStorage = this._accountStorage ? this._accountStorage.deleteAccount(email) : false;
+		return deletedInMemory || deletedFromStorage;
 	}
 
 	listAccounts(): EmailAccount[] {
-		return this.accountStorage.getAllAccounts();
+		// In-memory accounts take precedence over storage for same email
+		const merged = new Map<string, EmailAccount>();
+		if (this._accountStorage) {
+			for (const account of this._accountStorage.getAllAccounts()) {
+				merged.set(account.email, account);
+			}
+		}
+		for (const account of this.inMemoryAccounts.values()) {
+			merged.set(account.email, account);
+		}
+		return Array.from(merged.values());
 	}
 
 	setCredentials(clientId: string, clientSecret: string): void {
@@ -275,7 +321,7 @@ export class GmailService {
 
 	private getGmailClient(email: string): any {
 		if (!this.gmailClients.has(email)) {
-			const account = this.accountStorage.getAccount(email);
+			const account = this.inMemoryAccounts.get(email) ?? this._accountStorage?.getAccount(email);
 			if (!account) {
 				throw new Error(`Account '${email}' not found`);
 			}

@@ -1,5 +1,120 @@
 import { describe, test, expect } from "bun:test";
-import { resolveLabelIds, validateLabelColor, GMAIL_LABEL_COLORS, decodeBase64Url, decodeHtmlEntities, stripHtml, extractBody, extractAttachmentMetadata, normalizeNulls } from "./gmail-service";
+import { GmailService, resolveLabelIds, validateLabelColor, GMAIL_LABEL_COLORS, decodeBase64Url, decodeHtmlEntities, stripHtml, extractBody, extractAttachmentMetadata, normalizeNulls } from "./gmail-service";
+import type { EmailAccount } from "./types";
+
+describe("GmailService programmatic tokens", () => {
+	const testAccount: EmailAccount = {
+		email: "user@example.com",
+		oauth2: {
+			clientId: "test-client-id",
+			clientSecret: "test-client-secret",
+			refreshToken: "test-refresh-token",
+			accessToken: "test-access-token",
+		},
+	};
+
+	test("constructor accepts accounts option", () => {
+		const service = new GmailService({ accounts: [testAccount] });
+		const accounts = service.listAccounts();
+		expect(accounts).toHaveLength(1);
+		expect(accounts[0].email).toBe("user@example.com");
+		expect(accounts[0].oauth2.clientId).toBe("test-client-id");
+	});
+
+	test("constructor with multiple accounts", () => {
+		const account2: EmailAccount = {
+			email: "other@example.com",
+			oauth2: {
+				clientId: "client-2",
+				clientSecret: "secret-2",
+				refreshToken: "refresh-2",
+			},
+		};
+		const service = new GmailService({ accounts: [testAccount, account2] });
+		const accounts = service.listAccounts();
+		expect(accounts).toHaveLength(2);
+		expect(accounts.map((a) => a.email).sort()).toEqual(["other@example.com", "user@example.com"]);
+	});
+
+	test("constructor without arguments still works", () => {
+		const service = new GmailService();
+		expect(service).toBeInstanceOf(GmailService);
+	});
+
+	test("setAccountTokens adds an account", () => {
+		const service = new GmailService({ accounts: [] });
+		service.setAccountTokens(testAccount);
+		const accounts = service.listAccounts();
+		expect(accounts).toHaveLength(1);
+		expect(accounts[0].email).toBe("user@example.com");
+	});
+
+	test("setAccountTokens overwrites existing account with same email", () => {
+		const service = new GmailService({ accounts: [testAccount] });
+		const updated: EmailAccount = {
+			email: "user@example.com",
+			oauth2: {
+				clientId: "new-client-id",
+				clientSecret: "new-secret",
+				refreshToken: "new-refresh-token",
+			},
+		};
+		service.setAccountTokens(updated);
+		const accounts = service.listAccounts();
+		expect(accounts).toHaveLength(1);
+		expect(accounts[0].oauth2.clientId).toBe("new-client-id");
+	});
+
+	test("setAccountTokens clears cached gmail client for that email", () => {
+		const service = new GmailService({ accounts: [testAccount] });
+		const updated: EmailAccount = {
+			email: "user@example.com",
+			oauth2: {
+				clientId: "new-client-id",
+				clientSecret: "new-secret",
+				refreshToken: "new-refresh-token",
+				accessToken: "new-access-token",
+			},
+		};
+		service.setAccountTokens(updated);
+		const accounts = service.listAccounts();
+		expect(accounts[0].oauth2.accessToken).toBe("new-access-token");
+	});
+
+	test("deleteAccount removes in-memory account", () => {
+		const service = new GmailService({ accounts: [testAccount] });
+		expect(service.listAccounts()).toHaveLength(1);
+		const deleted = service.deleteAccount("user@example.com");
+		expect(deleted).toBe(true);
+		expect(service.listAccounts()).toHaveLength(0);
+	});
+
+	test("deleteAccount returns false for unknown account", () => {
+		const service = new GmailService({ accounts: [] });
+		const deleted = service.deleteAccount("nonexistent@example.com");
+		expect(deleted).toBe(false);
+	});
+
+	test("addGmailAccount rejects duplicate email from in-memory accounts", async () => {
+		const service = new GmailService({ accounts: [testAccount] });
+		await expect(
+			service.addGmailAccount("user@example.com", "client", "secret"),
+		).rejects.toThrow("Account 'user@example.com' already exists");
+	});
+
+	test("unknown email throws without triggering filesystem access", () => {
+		const service = new GmailService({ accounts: [testAccount] });
+		// Accessing a typo'd email should throw "not found" without
+		// creating ~/.gmail-cli/ via lazy AccountStorage init.
+		try {
+			(service as any).getGmailClient("typo@example.com");
+		} catch (e: any) {
+			expect(e.message).toBe("Account 'typo@example.com' not found");
+		}
+		// _accountStorage should not have been initialized
+		expect((service as any)._accountStorage).toBeUndefined();
+	});
+});
 
 describe("resolveLabelIds", () => {
 	const nameToId = new Map([

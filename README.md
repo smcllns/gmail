@@ -11,8 +11,9 @@ bunx @smcllns/gmail search "in:inbox is:unread" --max 10
 This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogic/gmcli). The original requests full Gmail permissions (`mail.google.com`), and I wanted to restrict capabilities to prevent agents from accidentally sending or deleting email. The intent is to let agents run autonomously to understand and manage the inbox, while requiring a human to make any one-way door decisions.
 
 1. **Restricted OAuth scopes** - The original uses `mail.google.com` (full access). This fork requests only:
-   - `gmail.modify` - to read messages, threads, and change labels
+   - `gmail.modify` (restricted) - required to add/remove labels and archive
    - `gmail.labels` - to create and edit labels
+   - Optional dry-run mode uses `gmail.readonly` for read-only access
 
 2. **Dangerous operations blocked in CLI** - Even where OAuth scopes allow, the CLI blocks:
    - `send` and `delete` commands are disabled
@@ -28,7 +29,7 @@ This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogi
 | Feature | @mariozechner/gmcli (original) | @smcllns/gmail (this fork) |
 | --- | --- | --- |
 | Gmail permissions | Full access | Read and organize mail (no send/delete) |
-| OAuth scopes | `mail.google.com` | `gmail.modify`, `gmail.labels` |
+| OAuth scopes | `mail.google.com` | `gmail.modify`, `gmail.labels` (live) / `gmail.readonly` (dry-run) |
 | Read email | ✅ Yes | ✅ Yes |
 | Send email | ✅ Yes | ❌ No |
 | Delete email | ✅ Yes | ❌ No |
@@ -78,6 +79,12 @@ gmail accounts add you@gmail.com
 
 # Or use --manual for headless/server environments
 gmail accounts add you@gmail.com --manual
+
+# Dry-run (read-only) mode
+gmail accounts add you@gmail.com --readonly
+
+# Upgrade to live mode (label changes)
+gmail accounts upgrade you@gmail.com
 ```
 
 ## Usage
@@ -110,6 +117,7 @@ gmail labels create "My Label"
 gmail labels create "Urgent" --text "#ffffff" --bg "#fb4c2f"  # with colors
 gmail labels edit "My Label" --name "Renamed" --bg "#16a765"
 gmail labels <threadId> --add Receipts --remove INBOX  # add label "Receipts" and archive thread
+gmail labels <threadId> --add TRASH --allow-dangerous-labels  # requires explicit override
 ```
 
 ### Get Gmail URLs to view messages in browser
@@ -153,6 +161,8 @@ ACCOUNT COMMANDS
   gmail accounts credentials <file>    Set OAuth credentials (once)
   gmail accounts list                  List configured accounts
   gmail accounts add <email>           Add account (--manual for browserless OAuth)
+  gmail accounts add <email> --readonly  Add account in read-only mode (dry-run)
+  gmail accounts upgrade <email>       Upgrade to live access (modify labels)
   gmail accounts remove <email>        Remove account
 
 CONFIG COMMANDS
@@ -178,9 +188,10 @@ GMAIL COMMANDS
   gmail labels edit <label> [--name <newName>] [--text HEX] [--bg HEX]
       Edit a label's name and/or colors.
 
-  gmail labels <threadIds...> [--add L] [--remove L]
+  gmail labels <threadIds...> [--add L] [--remove L] [--allow-dangerous-labels]
       Modify labels on threads.
       System labels: INBOX, UNREAD, STARRED, IMPORTANT, TRASH, SPAM
+      Adding TRASH or SPAM is blocked unless --allow-dangerous-labels is set.
 
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.

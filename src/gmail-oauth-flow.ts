@@ -1,3 +1,4 @@
+import * as crypto from "crypto";
 import { spawn } from "child_process";
 import * as http from "http";
 import type { AddressInfo } from "net";
@@ -5,10 +6,14 @@ import * as readline from "readline";
 import * as url from "url";
 import { OAuth2Client } from "google-auth-library";
 
-const SCOPES = [
-	"https://www.googleapis.com/auth/gmail.modify", // Read messages, threads, add and remove labels
-	"https://www.googleapis.com/auth/gmail.labels", // Create and edit labels
+export const GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+export const GMAIL_LABELS_SCOPE = "https://www.googleapis.com/auth/gmail.labels";
+export const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const DEFAULT_GMAIL_SCOPES = [
+	GMAIL_MODIFY_SCOPE, // Read messages, threads, add and remove labels
+	GMAIL_LABELS_SCOPE, // Create and edit labels
 ];
+export const READONLY_GMAIL_SCOPES = [GMAIL_READONLY_SCOPE];
 const TIMEOUT_MS = 2 * 60 * 1000;
 
 interface AuthResult {
@@ -17,13 +22,27 @@ interface AuthResult {
 	error?: string;
 }
 
+export type GmailOAuthOptions = {
+	scopes?: string[];
+	includeGrantedScopes?: boolean;
+	prompt?: "consent" | "select_account" | "none";
+};
+
 export class GmailOAuthFlow {
 	private oauth2Client: OAuth2Client;
 	private server: http.Server | null = null;
 	private timeoutId: NodeJS.Timeout | null = null;
+	private scopes: string[];
+	private includeGrantedScopes: boolean;
+	private prompt?: "consent" | "select_account" | "none";
+	private expectedState: string | null = null;
+	private codeVerifier: string | null = null;
 
-	constructor(clientId: string, clientSecret: string) {
+	constructor(clientId: string, clientSecret: string, options?: GmailOAuthOptions) {
 		this.oauth2Client = new OAuth2Client(clientId, clientSecret);
+		this.scopes = options?.scopes ?? DEFAULT_GMAIL_SCOPES;
+		this.includeGrantedScopes = options?.includeGrantedScopes ?? true;
+		this.prompt = options?.prompt;
 	}
 
 	async authorize(manual = false): Promise<string> {
@@ -41,10 +60,7 @@ export class GmailOAuthFlow {
 		const redirectUri = "http://localhost:1";
 		this.oauth2Client = new OAuth2Client(this.oauth2Client._clientId, this.oauth2Client._clientSecret, redirectUri);
 
-		const authUrl = this.oauth2Client.generateAuthUrl({
-			access_type: "offline",
-			scope: SCOPES,
-		});
+		const authUrl = this.generateAuthUrl();
 
 		console.log("Visit this URL to authorize:");
 		console.log(authUrl);
@@ -65,7 +81,18 @@ export class GmailOAuthFlow {
 						resolve({ success: false, error: "No authorization code found in URL" });
 						return;
 					}
-					const { tokens } = await this.oauth2Client.getToken(code);
+					if (!this.isValidState(parsed.query.state as string | undefined)) {
+						resolve({ success: false, error: "OAuth state mismatch" });
+						return;
+					}
+					if (!this.codeVerifier) {
+						resolve({ success: false, error: "Missing PKCE verifier" });
+						return;
+					}
+					const { tokens } = await this.oauth2Client.getToken({
+						code,
+						codeVerifier: this.codeVerifier,
+					} as any);
 					resolve({ success: true, refreshToken: tokens.refresh_token || undefined });
 				} catch (e) {
 					resolve({ success: false, error: e instanceof Error ? e.message : String(e) });
@@ -96,10 +123,7 @@ export class GmailOAuthFlow {
 					redirectUri,
 				);
 
-				const authUrl = this.oauth2Client.generateAuthUrl({
-					access_type: "offline",
-					scope: SCOPES,
-				});
+				const authUrl = this.generateAuthUrl();
 
 				console.log("Opening browser for Gmail authorization...");
 				console.log("If browser doesn't open, visit this URL:");
@@ -141,8 +165,27 @@ export class GmailOAuthFlow {
 			return;
 		}
 
+		if (!this.isValidState(query.state as string | undefined)) {
+			res.writeHead(400, { "Content-Type": "text/html" });
+			res.end("<html><body><h1>Invalid OAuth state</h1></body></html>");
+			this.cleanup();
+			resolve({ success: false, error: "OAuth state mismatch" });
+			return;
+		}
+
+		if (!this.codeVerifier) {
+			res.writeHead(500, { "Content-Type": "text/html" });
+			res.end("<html><body><h1>Missing PKCE verifier</h1></body></html>");
+			this.cleanup();
+			resolve({ success: false, error: "Missing PKCE verifier" });
+			return;
+		}
+
 		try {
-			const { tokens } = await this.oauth2Client.getToken(query.code as string);
+			const { tokens } = await this.oauth2Client.getToken({
+				code: query.code as string,
+				codeVerifier: this.codeVerifier,
+			} as any);
 			res.writeHead(200, { "Content-Type": "text/html" });
 			res.end("<html><body><h1>Success!</h1><p>You can close this window.</p></body></html>");
 			this.cleanup();
@@ -164,6 +207,37 @@ export class GmailOAuthFlow {
 			this.server.close();
 			this.server = null;
 		}
+		this.expectedState = null;
+		this.codeVerifier = null;
+	}
+
+	private generateAuthUrl(): string {
+		this.expectedState = crypto.randomBytes(16).toString("hex");
+		this.codeVerifier = this.base64Url(crypto.randomBytes(32));
+		const codeChallenge = this.base64Url(
+			crypto.createHash("sha256").update(this.codeVerifier).digest(),
+		);
+		return this.oauth2Client.generateAuthUrl({
+			access_type: "offline",
+			scope: this.scopes,
+			state: this.expectedState,
+			include_granted_scopes: this.includeGrantedScopes,
+			code_challenge: codeChallenge,
+			code_challenge_method: "S256",
+			...(this.prompt ? { prompt: this.prompt } : {}),
+		});
+	}
+
+	private isValidState(state: string | undefined): boolean {
+		return Boolean(state && this.expectedState && state === this.expectedState);
+	}
+
+	private base64Url(buffer: Buffer): string {
+		return buffer
+			.toString("base64")
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=+$/, "");
 	}
 
 	private openBrowser(url: string): void {

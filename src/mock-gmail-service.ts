@@ -4,6 +4,7 @@ import type {
 	DownloadedAttachment,
 	LabelOperationResult,
 } from "./gmail-service.js";
+import type { EmailAccount } from "./types.js";
 
 export interface MockLabel {
 	id: string;
@@ -96,6 +97,14 @@ export class MockGmailService {
 	 */
 	setError(method: keyof MockGmailServiceCalls, error: Error, once = false): void {
 		this.errors.push({ method, error, once });
+	}
+
+	/**
+	 * Accept account tokens for API parity with GmailService.
+	 * The mock doesn't use tokens, so this is a no-op.
+	 */
+	setAccountTokens(_account: EmailAccount): void {
+		// No-op: mock doesn't need real tokens
 	}
 
 	/**

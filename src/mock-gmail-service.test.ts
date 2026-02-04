@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import { MockGmailService } from "./mock-gmail-service";
 import type { EnhancedThread, ThreadSearchResult } from "./gmail-service";
+import type { EmailAccount } from "./types";
 
 describe("MockGmailService", () => {
 	let mock: MockGmailService;
@@ -440,6 +441,24 @@ describe("MockGmailService", () => {
 			expect((thread1 as EnhancedThread).id).toBe("thread1");
 			expect((thread2 as EnhancedThread).id).toBe("thread2");
 			expect((thread3 as EnhancedThread).id).toBe("thread3");
+		});
+	});
+
+	describe("setAccountTokens", () => {
+		test("is a callable method for API parity with GmailService", () => {
+			expect(typeof mock.setAccountTokens).toBe("function");
+		});
+
+		test("accepts an EmailAccount and is a no-op", () => {
+			mock.setAccountTokens({
+				email: "user@example.com",
+				oauth2: {
+					clientId: "id",
+					clientSecret: "secret",
+					refreshToken: "refresh",
+				},
+			});
+			// No error thrown — mock accepts but doesn't need tokens
 		});
 	});
 });

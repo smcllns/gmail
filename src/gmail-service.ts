@@ -224,12 +224,37 @@ export interface EnhancedThread extends Omit<GmailThread, "messages"> {
 	messages?: EnhancedMessage[];
 }
 
+export interface GmailServiceOptions {
+	accounts?: EmailAccount[];
+}
+
 export class GmailService {
-	private accountStorage = new AccountStorage();
+	private _accountStorage?: AccountStorage;
 	private gmailClients: Map<string, any> = new Map();
+	private inMemoryAccounts: Map<string, EmailAccount> = new Map();
+
+	constructor(options?: GmailServiceOptions) {
+		if (options?.accounts) {
+			for (const account of options.accounts) {
+				this.inMemoryAccounts.set(account.email, account);
+			}
+		}
+	}
+
+	private get accountStorage(): AccountStorage {
+		if (!this._accountStorage) {
+			this._accountStorage = new AccountStorage();
+		}
+		return this._accountStorage;
+	}
+
+	setAccountTokens(account: EmailAccount): void {
+		this.inMemoryAccounts.set(account.email, account);
+		this.gmailClients.delete(account.email);
+	}
 
 	async addGmailAccount(email: string, clientId: string, clientSecret: string, manual = false): Promise<void> {
-		if (this.accountStorage.hasAccount(email)) {
+		if (this.inMemoryAccounts.has(email) || this.accountStorage.hasAccount(email)) {
 			throw new Error(`Account '${email}' already exists`);
 		}
 
@@ -246,11 +271,22 @@ export class GmailService {
 
 	deleteAccount(email: string): boolean {
 		this.gmailClients.delete(email);
-		return this.accountStorage.deleteAccount(email);
+		const deletedInMemory = this.inMemoryAccounts.delete(email);
+		const deletedFromStorage = this._accountStorage ? this._accountStorage.deleteAccount(email) : false;
+		return deletedInMemory || deletedFromStorage;
 	}
 
 	listAccounts(): EmailAccount[] {
-		return this.accountStorage.getAllAccounts();
+		const merged = new Map<string, EmailAccount>();
+		if (this._accountStorage) {
+			for (const account of this._accountStorage.getAllAccounts()) {
+				merged.set(account.email, account);
+			}
+		}
+		for (const account of this.inMemoryAccounts.values()) {
+			merged.set(account.email, account);
+		}
+		return Array.from(merged.values());
 	}
 
 	setCredentials(clientId: string, clientSecret: string): void {
@@ -275,7 +311,7 @@ export class GmailService {
 
 	private getGmailClient(email: string): any {
 		if (!this.gmailClients.has(email)) {
-			const account = this.accountStorage.getAccount(email);
+			const account = this.inMemoryAccounts.get(email) ?? this.accountStorage.getAccount(email);
 			if (!account) {
 				throw new Error(`Account '${email}' not found`);
 			}

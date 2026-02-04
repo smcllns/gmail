@@ -187,9 +187,37 @@ DATA STORAGE
 ```typescript
 import { GmailService } from '@smcllns/gmail';
 
+// File-based accounts (reads from ~/.gmail-cli/)
 const gmail = new GmailService();
 const thread = await gmail.getThread('you@gmail.com', 'threadId123');
 ```
+
+#### Programmatic OAuth tokens
+
+Provide tokens directly without filesystem access — useful for web apps, serverless functions, and multi-tenant servers:
+
+```typescript
+import { GmailService, type EmailAccount } from '@smcllns/gmail';
+
+// Pass accounts at construction
+const gmail = new GmailService({
+  accounts: [{
+    email: 'user@gmail.com',
+    oauth2: { clientId, clientSecret, refreshToken, accessToken },
+  }],
+});
+
+// Or add/update tokens after construction
+gmail.setAccountTokens({
+  email: 'user@gmail.com',
+  oauth2: { clientId, clientSecret, refreshToken, accessToken },
+});
+
+// Then use normally
+const threads = await gmail.searchThreads('user@gmail.com', 'in:inbox', 50);
+```
+
+When only using in-memory accounts, `GmailService` never touches the filesystem (`~/.gmail-cli/`).
 
 Note: `getThread()` normalizes Google API responses, converting `null` values to `undefined`.
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+
+- `setAccountTokens()` method on `GmailService` for providing OAuth tokens programmatically
+- Constructor `accounts` option for declaring accounts at initialization
+- `GmailServiceOptions` and `EmailAccount` types exported from main package
+- `setAccountTokens()` on `MockGmailService` for API parity
+
+### Changed
+
+- `AccountStorage` is now lazy — no filesystem access (`~/.gmail-cli/`) when only using in-memory accounts
+
 ## 0.5.0
 
 ### ⚠️ Breaking Changes

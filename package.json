@@ -1,6 +1,6 @@
 {
 	"name": "@smcllns/gmail",
-	"version": "0.5.0",
+	"version": "0.6.0",
 	"description": "Minimal Gmail CLI with restricted scopes for Claude Code and other agents",
 	"type": "module",
 	"bin": {

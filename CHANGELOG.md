@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+
+- Read-only account auth plus upgrade flow for live label changes
+- Scope tracking on accounts and `updateGmailAccount()` for re-auth
+- Dangerous label guard with `--allow-dangerous-labels` override
+- Attachment filename sanitization
+
+### Changed
+
+- Account storage uses atomic writes with stricter parsing
+
+### ⚠️ Behavior Changes
+
+- CLI blocks adding TRASH/SPAM labels unless explicitly allowed
+- Corrupted `accounts.json` now throws instead of silently ignoring
+- Label create/update requires `gmail.labels` when scopes are recorded
+
 ## 0.6.0
 
 ### Added

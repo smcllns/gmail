@@ -85,6 +85,8 @@ gmail accounts add you@gmail.com --readonly
 
 # Upgrade to live mode (label changes)
 gmail accounts upgrade you@gmail.com
+
+Read-only accounts can search and read threads; label changes require upgrade.
 ```
 
 ## Usage
@@ -109,7 +111,11 @@ gmail thread <threadId>
 gmail thread <threadId> --download  # saves attachments to ~/.gmail-cli/attachments/
 ```
 
+Downloaded attachment filenames are sanitized and may differ from originals.
+
 ### Manage labels
+
+Adding TRASH or SPAM is blocked unless you pass `--allow-dangerous-labels`.
 
 ```bash
 gmail labels list
@@ -207,6 +213,8 @@ DATA STORAGE (default: ~/.gmail-cli/, override with --config-dir)
   <config-dir>/accounts.json      Account tokens
   <config-dir>/config.json        CLI configuration
   <config-dir>/attachments/       Downloaded attachments
+
+If `accounts.json` is corrupted or malformed, the CLI will error instead of silently continuing.
 ```
 
 ## Programmatic Usage
@@ -247,6 +255,8 @@ const threads = await gmail.searchThreads('user@gmail.com', 'in:inbox', 50);
 
 When only using in-memory accounts, `GmailService` never touches the filesystem (`~/.gmail-cli/`).
 
+If you set `account.scopes`, label operations enforce those scopes; include `gmail.labels` for create/update.
+
 Note: `getThread()` normalizes Google API responses, converting `null` values to `undefined`.
 
 #### Available methods
@@ -262,6 +272,8 @@ Note: `getThread()` normalizes Google API responses, converting `null` values to
 | `getLabelMap(email)` | Get bidirectional label name/ID lookup maps |
 | `downloadMessageAttachments(email, messageId)` | Download all attachments from a message |
 | `setAccountTokens(account)` | Add or update account tokens in memory |
+| `addGmailAccount(email, clientId, clientSecret, manual?, options?)` | Add account via OAuth (disk-backed) |
+| `updateGmailAccount(email, clientId, clientSecret, manual?, options?)` | Re-auth and replace stored tokens (disk-backed) |
 | `listAccounts()` | List all configured accounts |
 | `deleteAccount(email)` | Remove an account |
 

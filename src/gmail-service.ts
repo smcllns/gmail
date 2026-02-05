@@ -3,9 +3,24 @@ import * as path from "path";
 import { OAuth2Client } from "google-auth-library";
 import { type gmail_v1, google } from "googleapis";
 import { AccountStorage, DEFAULT_CONFIG_DIR } from "./account-storage.js";
-import { GmailOAuthFlow } from "./gmail-oauth-flow.js";
+import {
+	DEFAULT_GMAIL_SCOPES,
+	GMAIL_LABELS_SCOPE,
+	GMAIL_MODIFY_SCOPE,
+	GMAIL_READONLY_SCOPE,
+	GmailOAuthFlow,
+	READONLY_GMAIL_SCOPES,
+	type GmailOAuthOptions,
+} from "./gmail-oauth-flow.js";
 import type { EmailAccount } from "./types.js";
 export type { EmailAccount } from "./types.js";
+export {
+	DEFAULT_GMAIL_SCOPES,
+	GMAIL_LABELS_SCOPE,
+	GMAIL_MODIFY_SCOPE,
+	GMAIL_READONLY_SCOPE,
+	READONLY_GMAIL_SCOPES,
+} from "./gmail-oauth-flow.js";
 
 type GmailThread = gmail_v1.Schema$Thread;
 type GmailMessage = gmail_v1.Schema$Message;
@@ -59,6 +74,16 @@ export function stripHtml(html: string): string {
 			.replace(/\s+/g, " ")
 			.trim()
 	);
+}
+
+export function sanitizeFilename(name: string): string {
+	const base = path.basename(name || "");
+	const cleaned = base
+		.replace(/[\u0000-\u001F\u007F]/g, "")
+		.replace(/[\\/]/g, "_")
+		.trim();
+	const safe = cleaned || "attachment";
+	return safe.length > 200 ? safe.slice(0, 200) : safe;
 }
 
 /**
@@ -265,20 +290,51 @@ export class GmailService {
 
 	// This method always uses disk-backed storage (runs OAuth flow, persists refresh token).
 	// For in-memory token management, use setAccountTokens() instead.
-	async addGmailAccount(email: string, clientId: string, clientSecret: string, manual = false): Promise<void> {
+	async addGmailAccount(
+		email: string,
+		clientId: string,
+		clientSecret: string,
+		manual = false,
+		options?: GmailOAuthOptions,
+	): Promise<void> {
 		if (this.inMemoryAccounts.has(email) || this.accountStorage.hasAccount(email)) {
 			throw new Error(`Account '${email}' already exists`);
 		}
 
-		const oauthFlow = new GmailOAuthFlow(clientId, clientSecret);
+		const oauthFlow = new GmailOAuthFlow(clientId, clientSecret, options);
 		const refreshToken = await oauthFlow.authorize(manual);
 
 		const account: EmailAccount = {
 			email,
 			oauth2: { clientId, clientSecret, refreshToken },
+			scopes: options?.scopes ?? DEFAULT_GMAIL_SCOPES,
 		};
 
 		this.accountStorage.addAccount(account);
+	}
+
+	async updateGmailAccount(
+		email: string,
+		clientId: string,
+		clientSecret: string,
+		manual = false,
+		options?: GmailOAuthOptions,
+	): Promise<void> {
+		if (!this.accountStorage.hasAccount(email)) {
+			throw new Error(`Account '${email}' not found`);
+		}
+
+		const oauthFlow = new GmailOAuthFlow(clientId, clientSecret, options);
+		const refreshToken = await oauthFlow.authorize(manual);
+
+		const account: EmailAccount = {
+			email,
+			oauth2: { clientId, clientSecret, refreshToken },
+			scopes: options?.scopes ?? DEFAULT_GMAIL_SCOPES,
+		};
+
+		this.accountStorage.addAccount(account);
+		this.gmailClients.delete(email);
 	}
 
 	deleteAccount(email: string): boolean {
@@ -323,12 +379,28 @@ export class GmailService {
 		this.accountStorage.clearDefaultAccount();
 	}
 
+	private getAccount(email: string): EmailAccount {
+		const account = this.inMemoryAccounts.get(email) ?? this._accountStorage?.getAccount(email);
+		if (!account) {
+			throw new Error(`Account '${email}' not found`);
+		}
+		return account;
+	}
+
+	private ensureAnyScope(email: string, required: string[], action: string): void {
+		const account = this.getAccount(email);
+		if (!account.scopes || account.scopes.length === 0) {
+			return;
+		}
+		const hasScope = required.some((scope) => account.scopes?.includes(scope));
+		if (!hasScope) {
+			throw new Error(`Insufficient OAuth scope for ${action}. Required: ${required.join(", ")}.`);
+		}
+	}
+
 	private getGmailClient(email: string): any {
 		if (!this.gmailClients.has(email)) {
-			const account = this.inMemoryAccounts.get(email) ?? this._accountStorage?.getAccount(email);
-			if (!account) {
-				throw new Error(`Account '${email}' not found`);
-			}
+			const account = this.getAccount(email);
 
 			const oauth2Client = new OAuth2Client(
 				account.oauth2.clientId,
@@ -501,7 +573,8 @@ export class GmailService {
 		for (const attachment of attachments) {
 			try {
 				const shortAttachmentId = attachment.attachmentId.substring(0, 8);
-				const filename = `${attachment.messageId}_${shortAttachmentId}_${attachment.filename}`;
+				const safeName = sanitizeFilename(attachment.filename);
+				const filename = `${attachment.messageId}_${shortAttachmentId}_${safeName}`;
 				const filePath = path.join(attachmentDir, filename);
 
 				if (fs.existsSync(filePath)) {
@@ -546,6 +619,7 @@ export class GmailService {
 		addLabels: string[] = [],
 		removeLabels: string[] = [],
 	): Promise<LabelOperationResult[]> {
+		this.ensureAnyScope(email, [GMAIL_MODIFY_SCOPE], "modifying labels");
 		const gmail = this.getGmailClient(email);
 		const results: LabelOperationResult[] = [];
 
@@ -609,10 +683,11 @@ export class GmailService {
 		options: {
 			showInList?: boolean;
 			showInMessageList?: boolean;
-			textColor?: string;
-			backgroundColor?: string;
-		} = {},
+		textColor?: string;
+		backgroundColor?: string;
+	} = {},
 	): Promise<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }> {
+		this.ensureAnyScope(email, [GMAIL_LABELS_SCOPE, GMAIL_MODIFY_SCOPE], "creating labels");
 		const gmail = this.getGmailClient(email);
 		const requestBody: any = {
 			name,
@@ -650,10 +725,11 @@ export class GmailService {
 		labelId: string,
 		options: {
 			name?: string;
-			textColor?: string;
-			backgroundColor?: string;
-		},
+		textColor?: string;
+		backgroundColor?: string;
+	},
 	): Promise<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }> {
+		this.ensureAnyScope(email, [GMAIL_LABELS_SCOPE, GMAIL_MODIFY_SCOPE], "updating labels");
 		const gmail = this.getGmailClient(email);
 
 		const current = await gmail.users.labels.get({ userId: "me", id: labelId });

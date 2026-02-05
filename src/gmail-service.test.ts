@@ -1,5 +1,18 @@
 import { describe, test, expect } from "bun:test";
-import { GmailService, resolveLabelIds, validateLabelColor, GMAIL_LABEL_COLORS, decodeBase64Url, decodeHtmlEntities, stripHtml, extractBody, extractAttachmentMetadata, normalizeNulls } from "./gmail-service";
+import {
+	decodeBase64Url,
+	decodeHtmlEntities,
+	extractAttachmentMetadata,
+	extractBody,
+	GMAIL_LABEL_COLORS,
+	GMAIL_READONLY_SCOPE,
+	GmailService,
+	normalizeNulls,
+	resolveLabelIds,
+	sanitizeFilename,
+	stripHtml,
+	validateLabelColor,
+} from "./gmail-service";
 import type { EmailAccount } from "./types";
 
 describe("GmailService programmatic tokens", () => {
@@ -155,6 +168,31 @@ describe("GmailService configDir", () => {
 	});
 });
 
+describe("GmailService scope enforcement", () => {
+	const baseAccount: EmailAccount = {
+		email: "user@example.com",
+		oauth2: {
+			clientId: "test-client-id",
+			clientSecret: "test-client-secret",
+			refreshToken: "test-refresh-token",
+		},
+	};
+
+	test("modifyLabels rejects when scopes are missing", async () => {
+		const service = new GmailService({ accounts: [baseAccount] });
+		await expect(service.modifyLabels("user@example.com", ["thread1"], ["INBOX"], [])).rejects.toThrow(
+			/no recorded OAuth scopes/i,
+		);
+	});
+
+	test("createLabel rejects with readonly scope", async () => {
+		const service = new GmailService({ accounts: [{ ...baseAccount, scopes: [GMAIL_READONLY_SCOPE] }] });
+		await expect(service.createLabel("user@example.com", "Test")).rejects.toThrow(
+			/Insufficient OAuth scope/i,
+		);
+	});
+});
+
 describe("resolveLabelIds", () => {
 	const nameToId = new Map([
 		["inbox", "INBOX"],
@@ -197,6 +235,18 @@ describe("GMAIL_LABEL_COLORS", () => {
 		expect(GMAIL_LABEL_COLORS.has("#fb4c2f")).toBe(true);
 		expect(GMAIL_LABEL_COLORS.has("#ffffff")).toBe(true);
 		expect(GMAIL_LABEL_COLORS.has("#000000")).toBe(true);
+	});
+});
+
+describe("sanitizeFilename", () => {
+	test("drops path components and control characters", () => {
+		expect(sanitizeFilename("../etc/passwd")).toBe("passwd");
+		expect(sanitizeFilename("bad\nname.txt")).toBe("badname.txt");
+	});
+
+	test("normalizes separators and empty names", () => {
+		expect(sanitizeFilename("folder\\file.txt")).toBe("folder_file.txt");
+		expect(sanitizeFilename("")).toBe("attachment");
 	});
 });
 

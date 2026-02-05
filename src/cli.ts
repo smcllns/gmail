@@ -274,6 +274,7 @@ async function handleAccounts(args: string[]) {
 			const scopes = readonly ? READONLY_GMAIL_SCOPES : DEFAULT_GMAIL_SCOPES;
 			await service.addGmailAccount(email, creds.clientId, creds.clientSecret, manual, {
 				scopes,
+				// Security: avoid inheriting previously granted scopes in readonly mode.
 				includeGrantedScopes: readonly ? false : undefined,
 			});
 			console.log(`Account '${email}' added${readonly ? " (readonly)" : ""}`);
@@ -301,6 +302,7 @@ async function handleAccounts(args: string[]) {
 			await service.updateGmailAccount(email, creds.clientId, creds.clientSecret, manual, {
 				scopes: DEFAULT_GMAIL_SCOPES,
 				prompt: "consent",
+				// Security: require explicit consent for live access.
 				includeGrantedScopes: false,
 			});
 			console.log(`Account '${email}' upgraded to live access`);
@@ -425,6 +427,7 @@ function formatSize(bytes: number): string {
 }
 
 function sanitizeForTerminal(value: string): string {
+	// Security: strip control chars to prevent terminal escape injection.
 	return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(CONTROL_CHARS, "");
 }
 
@@ -530,6 +533,7 @@ async function handleLabels(account: string, args: string[]) {
 
 	const addLabels = values.add ? service.resolveLabelIds(values.add.split(","), nameToId) : [];
 	if (!allowDangerous) {
+		// Security: block dangerous system labels unless explicitly allowed.
 		const dangerous = addLabels.filter((label) => DANGEROUS_LABELS.has(label.toUpperCase()));
 		if (dangerous.length > 0) {
 			error(

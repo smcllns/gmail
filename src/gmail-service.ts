@@ -77,6 +77,7 @@ export function stripHtml(html: string): string {
 }
 
 export function sanitizeFilename(name: string): string {
+	// Security: normalize untrusted filenames to prevent traversal or unsafe chars.
 	const normalized = (name || "").replace(/\\/g, "/");
 	const base = path.posix.basename(normalized);
 	const cleaned = base

@@ -77,12 +77,15 @@ export function stripHtml(html: string): string {
 }
 
 export function sanitizeFilename(name: string): string {
-	const base = path.basename(name || "");
+	const normalized = (name || "").replace(/\\/g, "/");
+	const base = path.posix.basename(normalized);
 	const cleaned = base
 		.replace(/[\u0000-\u001F\u007F]/g, "")
+		.replace(/[<>:"|?*]/g, "")
 		.replace(/[\\/]/g, "_")
 		.trim();
-	const safe = cleaned || "attachment";
+	const trimmed = cleaned.replace(/[. ]+$/g, "");
+	const safe = trimmed || "attachment";
 	return safe.length > 200 ? safe.slice(0, 200) : safe;
 }
 
@@ -687,7 +690,7 @@ export class GmailService {
 		backgroundColor?: string;
 	} = {},
 	): Promise<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }> {
-		this.ensureAnyScope(email, [GMAIL_LABELS_SCOPE, GMAIL_MODIFY_SCOPE], "creating labels");
+		this.ensureAnyScope(email, [GMAIL_LABELS_SCOPE], "creating labels");
 		const gmail = this.getGmailClient(email);
 		const requestBody: any = {
 			name,
@@ -729,7 +732,7 @@ export class GmailService {
 		backgroundColor?: string;
 	},
 	): Promise<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }> {
-		this.ensureAnyScope(email, [GMAIL_LABELS_SCOPE, GMAIL_MODIFY_SCOPE], "updating labels");
+		this.ensureAnyScope(email, [GMAIL_LABELS_SCOPE], "updating labels");
 		const gmail = this.getGmailClient(email);
 
 		const current = await gmail.users.labels.get({ userId: "me", id: labelId });

@@ -397,10 +397,10 @@ async function handleThread(account: string, args: string[]) {
 	} else {
 		const thread = result as EnhancedThread;
 		for (const msg of thread.messages || []) {
-			console.log(`Message-ID: ${msg.id}`);
+			console.log(`Message-ID: ${sanitizeSingleLine(msg.id || "")}`);
 			console.log(`From: ${sanitizeSingleLine(msg.parsed.headers.from || "")}`);
-			console.log(`To: ${msg.parsed.headers.to || ""}`);
-			console.log(`Date: ${msg.parsed.headers.date || ""}`);
+			console.log(`To: ${sanitizeSingleLine(msg.parsed.headers.to || "")}`);
+			console.log(`Date: ${sanitizeSingleLine(msg.parsed.headers.date || "")}`);
 			console.log(`Subject: ${sanitizeSingleLine(msg.parsed.headers.subject || "")}`);
 			console.log("");
 			console.log(sanitizeForTerminal(msg.parsed.body));
@@ -509,17 +509,6 @@ async function handleLabels(account: string, args: string[]) {
 
 	const { nameToId, idToName } = await service.getLabelMap(account);
 
-	if (values.add && !allowDangerous) {
-		const requested = values.add.split(",").map((label) => label.trim()).filter(Boolean);
-		const dangerous = requested.filter((label) => DANGEROUS_LABELS.has(label.toUpperCase()));
-		if (dangerous.length > 0) {
-			error(
-				`Refusing to add label(s): ${dangerous.join(", ")}
-Use --allow-dangerous-labels to override.`,
-			);
-		}
-	}
-
 	// Check if any labels to add don't exist and provide helpful error
 	if (values.add) {
 		const labelNames = values.add.split(",");
@@ -540,6 +529,15 @@ Use --allow-dangerous-labels to override.`,
 	}
 
 	const addLabels = values.add ? service.resolveLabelIds(values.add.split(","), nameToId) : [];
+	if (!allowDangerous) {
+		const dangerous = addLabels.filter((label) => DANGEROUS_LABELS.has(label.toUpperCase()));
+		if (dangerous.length > 0) {
+			error(
+				`Refusing to add label(s): ${dangerous.join(", ")}
+Use --allow-dangerous-labels to override.`,
+			);
+		}
+	}
 	const removeLabels = values.remove ? service.resolveLabelIds(values.remove.split(","), nameToId) : [];
 
 	const results = await service.modifyLabels(account, threadIds, addLabels, removeLabels);

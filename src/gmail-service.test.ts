@@ -215,12 +215,17 @@ describe("GMAIL_LABEL_COLORS", () => {
 describe("sanitizeFilename", () => {
 	test("drops path components and control characters", () => {
 		expect(sanitizeFilename("../etc/passwd")).toBe("passwd");
+		expect(sanitizeFilename("folder\\file.txt")).toBe("file.txt");
 		expect(sanitizeFilename("bad\nname.txt")).toBe("badname.txt");
 	});
 
 	test("normalizes separators and empty names", () => {
-		expect(sanitizeFilename("folder\\file.txt")).toBe("folder_file.txt");
 		expect(sanitizeFilename("")).toBe("attachment");
+	});
+
+	test("removes reserved characters and trailing dots", () => {
+		expect(sanitizeFilename("report:2024?.pdf")).toBe("report2024.pdf");
+		expect(sanitizeFilename("report. ")).toBe("report");
 	});
 
 	test("trims surrounding whitespace", () => {

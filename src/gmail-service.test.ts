@@ -577,6 +577,14 @@ describe("normalizeNulls", () => {
 		expect(result).toEqual([{ id: 1, name: undefined }, { id: 2, name: "test" }]);
 	});
 
+	test("does not mutate the input", () => {
+		const input = { a: null, nested: { b: null }, list: [null] };
+		const snapshot = JSON.parse(JSON.stringify(input));
+		const result = normalizeNulls(input);
+		expect(input).toEqual(snapshot);
+		expect(result).not.toBe(input);
+	});
+
 	test("handles deeply nested structures", () => {
 		const input = {
 			level1: {

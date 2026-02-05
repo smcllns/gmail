@@ -77,6 +77,7 @@ export function stripHtml(html: string): string {
 }
 
 export function sanitizeFilename(name: string): string {
+	// Security: strip path/control chars to prevent traversal or terminal injection.
 	const base = path.basename(name || "");
 	const cleaned = base
 		.replace(/[\u0000-\u001F\u007F]/g, "")
@@ -390,6 +391,7 @@ export class GmailService {
 	private ensureAnyScope(email: string, required: string[], action: string): void {
 		const account = this.getAccount(email);
 		if (!account.scopes || account.scopes.length === 0) {
+			// Security: fail closed when scopes are unknown.
 			throw new Error(
 				`Account '${email}' has no recorded OAuth scopes. Re-authorize or provide account.scopes to grant ${required.join(", ")} for ${action}.`,
 			);
@@ -569,6 +571,7 @@ export class GmailService {
 		const baseDir = this._accountStorage?.configDir ?? this.configDir ?? DEFAULT_CONFIG_DIR;
 		const attachmentDir = path.join(baseDir, "attachments");
 		if (!fs.existsSync(attachmentDir)) {
+			// Security: restrict attachment directory permissions.
 			fs.mkdirSync(attachmentDir, { recursive: true, mode: 0o700 });
 		} else {
 			const stat = fs.statSync(attachmentDir);
@@ -576,6 +579,7 @@ export class GmailService {
 				throw new Error(`Attachment path is not a directory: ${attachmentDir}`);
 			}
 			try {
+				// Security: tighten perms if dir already existed.
 				fs.chmodSync(attachmentDir, 0o700);
 			} catch {
 			}
@@ -609,6 +613,7 @@ export class GmailService {
 				});
 
 				const data = Buffer.from(response.data.data, "base64url");
+				// Security: restrict attachment file permissions.
 				fs.writeFileSync(filePath, data, { mode: 0o600 });
 
 				results.push({ success: true, filename: attachment.filename, path: filePath, cached: false });

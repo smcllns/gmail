@@ -41,6 +41,7 @@ export class GmailOAuthFlow {
 	constructor(clientId: string, clientSecret: string, options?: GmailOAuthOptions) {
 		this.oauth2Client = new OAuth2Client(clientId, clientSecret);
 		this.scopes = options?.scopes ?? DEFAULT_GMAIL_SCOPES;
+		// Security: default to least-privilege scopes (no incremental scope carryover).
 		this.includeGrantedScopes = options?.includeGrantedScopes ?? false;
 		this.prompt = options?.prompt;
 	}
@@ -212,6 +213,7 @@ export class GmailOAuthFlow {
 	}
 
 	private generateAuthUrl(): string {
+		// Security: PKCE + state to prevent code interception/CSRF.
 		this.expectedState = crypto.randomBytes(16).toString("hex");
 		this.codeVerifier = this.base64Url(crypto.randomBytes(32));
 		const codeChallenge = this.base64Url(

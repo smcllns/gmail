@@ -283,6 +283,7 @@ async function handleAccounts(args: string[]) {
 			const scopes = readonly ? READONLY_GMAIL_SCOPES : DEFAULT_GMAIL_SCOPES;
 			await service.addGmailAccount(email, creds.clientId, creds.clientSecret, manual, {
 				scopes,
+				// Security: avoid inheriting previously granted scopes in readonly mode.
 				includeGrantedScopes: false,
 			});
 			console.log(`Account '${email}' added${readonly ? " (readonly)" : ""}`);
@@ -309,6 +310,7 @@ async function handleAccounts(args: string[]) {
 			}
 			await service.updateGmailAccount(email, creds.clientId, creds.clientSecret, manual, {
 				scopes: DEFAULT_GMAIL_SCOPES,
+				// Security: require explicit consent for live access.
 				includeGrantedScopes: false,
 				prompt: "consent",
 			});
@@ -441,6 +443,7 @@ function formatSize(bytes: number): string {
 }
 
 function sanitizeForTerminal(value: string): string {
+	// Security: strip control chars to prevent terminal escape injection.
 	return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(CONTROL_CHARS, "");
 }
 
@@ -544,6 +547,7 @@ async function handleLabels(account: string, args: string[]) {
 	const { nameToId, idToName } = await service.getLabelMap(account);
 
 	if (values.add && !allowDangerous) {
+		// Security: block dangerous system labels unless explicitly allowed.
 		const requested = values.add.split(",").map((label) => label.trim()).filter(Boolean);
 		const dangerous = requested.filter((label) => DANGEROUS_LABELS.has(label.toUpperCase()));
 		if (dangerous.length > 0) {
@@ -620,6 +624,7 @@ function handleUrl(account: string, args: string[]) {
 
 	for (const id of args) {
 		const safeId = sanitizeSingleLine(id);
+		// Security: encode thread IDs to prevent output injection.
 		const encodedId = encodeURIComponent(safeId);
 		const url = `https://mail.google.com/mail/?authuser=${encodeURIComponent(account)}#all/${encodedId}`;
 		console.log(`${safeId}\t${url}`);

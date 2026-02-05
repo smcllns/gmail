@@ -23,6 +23,7 @@ export class AccountStorage {
 
 	private ensureConfigDir(): void {
 		if (!fs.existsSync(this.configDir)) {
+			// Security: restrict config directory permissions for stored credentials/tokens.
 			fs.mkdirSync(this.configDir, { recursive: true, mode: 0o700 });
 			return;
 		}
@@ -31,6 +32,7 @@ export class AccountStorage {
 			throw new Error(`Config directory path is not a directory: ${this.configDir}`);
 		}
 		try {
+			// Security: tighten permissions even if directory already existed.
 			fs.chmodSync(this.configDir, 0o700);
 		} catch {
 		}
@@ -47,6 +49,7 @@ export class AccountStorage {
 					this.accounts.set(account.email, account);
 				}
 			} catch {
+				// Security: fail closed on corrupted/tampered accounts file.
 				throw new Error(`Failed to parse accounts file: ${this.accountsFile}`);
 			}
 		}
@@ -59,6 +62,7 @@ export class AccountStorage {
 	private writeJsonFileAtomic(filePath: string, data: unknown): void {
 		const dir = path.dirname(filePath);
 		const tempPath = path.join(dir, `.tmp-${path.basename(filePath)}-${process.pid}-${Date.now()}`);
+		// Security: atomic write with restrictive perms for secret-bearing files.
 		fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), { mode: 0o600 });
 		fs.renameSync(tempPath, filePath);
 		try {

@@ -6,6 +6,7 @@ import { DEFAULT_GMAIL_SCOPES, EnhancedThread, GmailService, READONLY_GMAIL_SCOP
 
 let service!: GmailService;
 
+// Security model: this CLI is for read + label changes by agents; destructive labels are blocked by default.
 const DANGEROUS_LABELS = new Set(["TRASH", "SPAM"]);
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 

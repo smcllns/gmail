@@ -82,6 +82,7 @@ export class AccountStorage {
 	}
 
 	setCredentials(clientId: string, clientSecret: string): void {
+		// Security: atomic write prevents partial secrets if the process crashes.
 		this.writeJsonFileAtomic(this.credentialsFile, { clientId, clientSecret });
 	}
 

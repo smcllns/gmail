@@ -311,6 +311,7 @@ export class GmailService {
 		const account: EmailAccount = {
 			email,
 			oauth2: { clientId, clientSecret, refreshToken },
+			// Security: record granted scopes for later enforcement.
 			scopes: options?.scopes ?? DEFAULT_GMAIL_SCOPES,
 		};
 
@@ -334,6 +335,7 @@ export class GmailService {
 		const account: EmailAccount = {
 			email,
 			oauth2: { clientId, clientSecret, refreshToken },
+			// Security: record granted scopes for later enforcement.
 			scopes: options?.scopes ?? DEFAULT_GMAIL_SCOPES,
 		};
 
@@ -394,6 +396,7 @@ export class GmailService {
 	private ensureAnyScope(email: string, required: string[], action: string): void {
 		const account = this.getAccount(email);
 		if (!account.scopes || account.scopes.length === 0) {
+			// Security: preserve compatibility for legacy accounts without recorded scopes.
 			return;
 		}
 		const hasScope = required.some((scope) => account.scopes?.includes(scope));

@@ -2,9 +2,13 @@
 
 import * as fs from "fs";
 import { parseArgs } from "util";
-import { GmailService, EnhancedThread } from "./gmail-service.js";
+import { DEFAULT_GMAIL_SCOPES, EnhancedThread, GmailService, READONLY_GMAIL_SCOPES } from "./gmail-service.js";
 
 let service!: GmailService;
+
+// Security model: this CLI is for read + label changes by agents; destructive labels are blocked by default.
+const DANGEROUS_LABELS = new Set(["TRASH", "SPAM"]);
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
 // Custom error class for restricted operations
 class RestrictedOperationError extends Error {
@@ -27,10 +31,11 @@ USAGE
 
 ACCOUNT COMMANDS
 
-  gmail accounts credentials <file.json>    Set OAuth credentials (once)
-  gmail accounts list                       List configured accounts
-  gmail accounts add <email> [--manual]     Add account (--manual for browserless OAuth)
-  gmail accounts remove <email>             Remove account
+  gmail accounts credentials <file.json>           Set OAuth credentials (once)
+  gmail accounts list                              List configured accounts
+  gmail accounts add <email> [--manual] [--readonly]  Add account (--readonly for dry-run)
+  gmail accounts upgrade <email> [--manual]        Upgrade to live access (modify labels)
+  gmail accounts remove <email>                    Remove account
 
 CONFIG COMMANDS
 
@@ -67,10 +72,11 @@ GMAIL COMMANDS
       Edit a label's name and/or colors. Accepts label name or ID.
       Colors must be hex codes from Gmail's palette.
 
-  gmail labels <threadIds...> [--add L] [--remove L]
+  gmail labels <threadIds...> [--add L] [--remove L] [--allow-dangerous-labels]
       Modify labels on threads (comma-separated for multiple).
       Accepts label names or IDs (names are case-insensitive).
       System labels: INBOX, UNREAD, STARRED, IMPORTANT, TRASH, SPAM
+      Adding TRASH or SPAM is blocked unless --allow-dangerous-labels is set.
 
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.
@@ -84,6 +90,8 @@ RESTRICTED OPERATIONS (will return guidance instead of executing)
 EXAMPLES
 
   gmail config default you@gmail.com
+  gmail accounts add you@gmail.com --readonly
+  gmail accounts upgrade you@gmail.com
   gmail search "in:inbox is:unread"
   gmail search "from:boss@company.com" --max 50
   gmail thread 19aea1f2f3532db5
@@ -230,7 +238,7 @@ async function handleConfig(args: string[]) {
 
 async function handleAccounts(args: string[]) {
 	const action = args[0];
-	if (!action) error("Missing action: list|add|remove|credentials");
+	if (!action) error("Missing action: list|add|upgrade|remove|credentials");
 
 	switch (action) {
 		case "list": {
@@ -258,13 +266,19 @@ async function handleAccounts(args: string[]) {
 		}
 		case "add": {
 			const manual = args.includes("--manual");
-			const filtered = args.slice(1).filter((a) => a !== "--manual");
+			const readonly = args.includes("--readonly");
+			const filtered = args.slice(1).filter((a) => a !== "--manual" && a !== "--readonly");
 			const email = filtered[0];
-			if (!email) error("Usage: gmail accounts add <email> [--manual]");
+			if (!email) error("Usage: gmail accounts add <email> [--manual] [--readonly]");
 			const creds = service.getCredentials();
 			if (!creds) error("No credentials configured. Run: gmail accounts credentials <credentials.json>");
-			await service.addGmailAccount(email, creds.clientId, creds.clientSecret, manual);
-			console.log(`Account '${email}' added`);
+			const scopes = readonly ? READONLY_GMAIL_SCOPES : DEFAULT_GMAIL_SCOPES;
+			await service.addGmailAccount(email, creds.clientId, creds.clientSecret, manual, {
+				scopes,
+				// Security: avoid inheriting previously granted scopes in readonly mode.
+				includeGrantedScopes: readonly ? false : undefined,
+			});
+			console.log(`Account '${email}' added${readonly ? " (readonly)" : ""}`);
 
 			// Set as default if it's the first account
 			const accounts = service.listAccounts();
@@ -272,6 +286,27 @@ async function handleAccounts(args: string[]) {
 				service.setDefaultAccount(email);
 				console.log(`Set as default account`);
 			}
+			break;
+		}
+		case "upgrade": {
+			const manual = args.includes("--manual");
+			const filtered = args.slice(1).filter((a) => a !== "--manual");
+			const email = filtered[0];
+			if (!email) error("Usage: gmail accounts upgrade <email> [--manual]");
+			const creds = service.getCredentials();
+			if (!creds) error("No credentials configured. Run: gmail accounts credentials <credentials.json>");
+			const accounts = service.listAccounts();
+			const exists = accounts.some((a) => a.email === email);
+			if (!exists) {
+				error(`Account '${email}' not found. Add it first with: gmail accounts add ${email}`);
+			}
+			await service.updateGmailAccount(email, creds.clientId, creds.clientSecret, manual, {
+				scopes: DEFAULT_GMAIL_SCOPES,
+				prompt: "consent",
+				// Security: require explicit consent for live access.
+				includeGrantedScopes: false,
+			});
+			console.log(`Account '${email}' upgraded to live access`);
 			break;
 		}
 		case "remove": {
@@ -325,8 +360,8 @@ async function handleSearch(account: string, args: string[]) {
 		for (const t of results.threads) {
 			const msg = t.messages[0];
 			const date = msg?.date ? new Date(msg.date).toISOString().slice(0, 16).replace("T", " ") : "";
-			const from = msg?.from?.replace(/\t/g, " ") || "";
-			const subject = msg?.subject?.replace(/\t/g, " ") || "(no subject)";
+			const from = sanitizeSingleLine(msg?.from || "");
+			const subject = sanitizeSingleLine(msg?.subject || "(no subject)");
 			// Aggregate labels from all messages in thread to match Gmail web behavior
 			const allLabelIds = new Set<string>();
 			for (const m of t.messages) {
@@ -365,13 +400,13 @@ async function handleThread(account: string, args: string[]) {
 	} else {
 		const thread = result as EnhancedThread;
 		for (const msg of thread.messages || []) {
-			console.log(`Message-ID: ${msg.id}`);
-			console.log(`From: ${msg.parsed.headers.from || ""}`);
-			console.log(`To: ${msg.parsed.headers.to || ""}`);
-			console.log(`Date: ${msg.parsed.headers.date || ""}`);
-			console.log(`Subject: ${msg.parsed.headers.subject || ""}`);
+			console.log(`Message-ID: ${sanitizeSingleLine(msg.id || "")}`);
+			console.log(`From: ${sanitizeSingleLine(msg.parsed.headers.from || "")}`);
+			console.log(`To: ${sanitizeSingleLine(msg.parsed.headers.to || "")}`);
+			console.log(`Date: ${sanitizeSingleLine(msg.parsed.headers.date || "")}`);
+			console.log(`Subject: ${sanitizeSingleLine(msg.parsed.headers.subject || "")}`);
 			console.log("");
-			console.log(msg.parsed.body);
+			console.log(sanitizeForTerminal(msg.parsed.body));
 			console.log("");
 			if (msg.parsed.attachments.length > 0) {
 				console.log("Attachments:");
@@ -392,6 +427,15 @@ function formatSize(bytes: number): string {
 	return `${(bytes / 1024 ** i).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
+function sanitizeForTerminal(value: string): string {
+	// Security: strip control chars to prevent terminal escape injection.
+	return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(CONTROL_CHARS, "");
+}
+
+function sanitizeSingleLine(value: string): string {
+	return sanitizeForTerminal(value).replace(/\n+/g, " ").replace(/\t/g, " ").trim();
+}
+
 async function handleLabels(account: string, args: string[]) {
 	const { values, positionals } = parseArgs({
 		args,
@@ -401,12 +445,17 @@ async function handleLabels(account: string, args: string[]) {
 			name: { type: "string", short: "n" },
 			text: { type: "string" },
 			bg: { type: "string" },
+			"allow-dangerous-labels": { type: "boolean" },
 		},
 		allowPositionals: true,
 	});
 
+	const allowDangerous = Boolean(values["allow-dangerous-labels"]);
+
 	if (positionals.length === 0) {
-		error("Usage: gmail labels list | create <name> | edit <label> --name <new> | <threadIds...> [--add L] [--remove L]");
+		error(
+			"Usage: gmail labels list | create <name> | edit <label> --name <new> | <threadIds...> [--add L] [--remove L] [--allow-dangerous-labels]",
+		);
 	}
 
 	// labels list
@@ -484,6 +533,16 @@ async function handleLabels(account: string, args: string[]) {
 	}
 
 	const addLabels = values.add ? service.resolveLabelIds(values.add.split(","), nameToId) : [];
+	if (!allowDangerous) {
+		// Security: block dangerous system labels unless explicitly allowed.
+		const dangerous = addLabels.filter((label) => DANGEROUS_LABELS.has(label.toUpperCase()));
+		if (dangerous.length > 0) {
+			error(
+				`Refusing to add label(s): ${dangerous.join(", ")}
+Use --allow-dangerous-labels to override.`,
+			);
+		}
+	}
 	const removeLabels = values.remove ? service.resolveLabelIds(values.remove.split(","), nameToId) : [];
 
 	const results = await service.modifyLabels(account, threadIds, addLabels, removeLabels);

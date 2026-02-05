@@ -23,7 +23,8 @@ export class AccountStorage {
 
 	private ensureConfigDir(): void {
 		if (!fs.existsSync(this.configDir)) {
-			fs.mkdirSync(this.configDir, { recursive: true });
+			// Security: restrict config directory permissions for stored tokens.
+			fs.mkdirSync(this.configDir, { recursive: true, mode: 0o700 });
 		}
 	}
 
@@ -31,17 +32,30 @@ export class AccountStorage {
 		if (fs.existsSync(this.accountsFile)) {
 			try {
 				const data = JSON.parse(fs.readFileSync(this.accountsFile, "utf8"));
+				if (!Array.isArray(data)) {
+					// Security: fail closed on corrupted accounts file.
+					throw new Error("Invalid accounts file format");
+				}
 				for (const account of data) {
 					this.accounts.set(account.email, account);
 				}
 			} catch {
-				// Ignore
+				// Security: surface parse failures instead of silently continuing.
+				throw new Error(`Failed to parse accounts file: ${this.accountsFile}`);
 			}
 		}
 	}
 
 	private saveAccounts(): void {
-		fs.writeFileSync(this.accountsFile, JSON.stringify(Array.from(this.accounts.values()), null, 2));
+		this.writeJsonFileAtomic(this.accountsFile, Array.from(this.accounts.values()));
+	}
+
+	private writeJsonFileAtomic(filePath: string, data: unknown): void {
+		const dir = path.dirname(filePath);
+		const tempPath = path.join(dir, `.tmp-${path.basename(filePath)}-${process.pid}-${Date.now()}`);
+		// Security: atomic write with restrictive perms for secret-bearing files.
+		fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), { mode: 0o600 });
+		fs.renameSync(tempPath, filePath);
 	}
 
 	addAccount(account: EmailAccount): void {
@@ -68,7 +82,8 @@ export class AccountStorage {
 	}
 
 	setCredentials(clientId: string, clientSecret: string): void {
-		fs.writeFileSync(this.credentialsFile, JSON.stringify({ clientId, clientSecret }, null, 2));
+		// Security: atomic write prevents partial secrets if the process crashes.
+		this.writeJsonFileAtomic(this.credentialsFile, { clientId, clientSecret });
 	}
 
 	getCredentials(): { clientId: string; clientSecret: string } | null {
@@ -83,7 +98,7 @@ export class AccountStorage {
 	setDefaultAccount(email: string): void {
 		const config = this.loadConfig();
 		config.defaultAccount = email;
-		fs.writeFileSync(this.configFile, JSON.stringify(config, null, 2));
+		this.writeJsonFileAtomic(this.configFile, config);
 	}
 
 	getDefaultAccount(): string | null {
@@ -94,7 +109,7 @@ export class AccountStorage {
 	clearDefaultAccount(): void {
 		const config = this.loadConfig();
 		delete config.defaultAccount;
-		fs.writeFileSync(this.configFile, JSON.stringify(config, null, 2));
+		this.writeJsonFileAtomic(this.configFile, config);
 	}
 
 	private loadConfig(): { defaultAccount?: string } {

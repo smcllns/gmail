@@ -5,10 +5,14 @@ import * as readline from "readline";
 import * as url from "url";
 import { OAuth2Client } from "google-auth-library";
 
-const SCOPES = [
-	"https://www.googleapis.com/auth/gmail.modify", // Read messages, threads, add and remove labels
-	"https://www.googleapis.com/auth/gmail.labels", // Create and edit labels
+export const GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+export const GMAIL_LABELS_SCOPE = "https://www.googleapis.com/auth/gmail.labels";
+export const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const DEFAULT_GMAIL_SCOPES = [
+	GMAIL_MODIFY_SCOPE, // Read messages, threads, add and remove labels
+	GMAIL_LABELS_SCOPE, // Create and edit labels
 ];
+export const READONLY_GMAIL_SCOPES = [GMAIL_READONLY_SCOPE];
 const TIMEOUT_MS = 2 * 60 * 1000;
 
 interface AuthResult {
@@ -17,13 +21,25 @@ interface AuthResult {
 	error?: string;
 }
 
+export type GmailOAuthOptions = {
+	scopes?: string[];
+	includeGrantedScopes?: boolean;
+	prompt?: "consent" | "select_account" | "none";
+};
+
 export class GmailOAuthFlow {
 	private oauth2Client: OAuth2Client;
 	private server: http.Server | null = null;
 	private timeoutId: NodeJS.Timeout | null = null;
+	private scopes: string[];
+	private includeGrantedScopes?: boolean;
+	private prompt?: "consent" | "select_account" | "none";
 
-	constructor(clientId: string, clientSecret: string) {
+	constructor(clientId: string, clientSecret: string, options?: GmailOAuthOptions) {
 		this.oauth2Client = new OAuth2Client(clientId, clientSecret);
+		this.scopes = options?.scopes ?? DEFAULT_GMAIL_SCOPES;
+		this.includeGrantedScopes = options?.includeGrantedScopes;
+		this.prompt = options?.prompt;
 	}
 
 	async authorize(manual = false): Promise<string> {
@@ -41,10 +57,7 @@ export class GmailOAuthFlow {
 		const redirectUri = "http://localhost:1";
 		this.oauth2Client = new OAuth2Client(this.oauth2Client._clientId, this.oauth2Client._clientSecret, redirectUri);
 
-		const authUrl = this.oauth2Client.generateAuthUrl({
-			access_type: "offline",
-			scope: SCOPES,
-		});
+		const authUrl = this.buildAuthUrl();
 
 		console.log("Visit this URL to authorize:");
 		console.log(authUrl);
@@ -96,10 +109,7 @@ export class GmailOAuthFlow {
 					redirectUri,
 				);
 
-				const authUrl = this.oauth2Client.generateAuthUrl({
-					access_type: "offline",
-					scope: SCOPES,
-				});
+				const authUrl = this.buildAuthUrl();
 
 				console.log("Opening browser for Gmail authorization...");
 				console.log("If browser doesn't open, visit this URL:");
@@ -164,6 +174,25 @@ export class GmailOAuthFlow {
 			this.server.close();
 			this.server = null;
 		}
+	}
+
+	private buildAuthUrl(): string {
+		const options: {
+			access_type: "offline";
+			scope: string[];
+			include_granted_scopes?: boolean;
+			prompt?: "consent" | "select_account" | "none";
+		} = {
+			access_type: "offline",
+			scope: this.scopes,
+		};
+		if (this.includeGrantedScopes !== undefined) {
+			options.include_granted_scopes = this.includeGrantedScopes;
+		}
+		if (this.prompt) {
+			options.prompt = this.prompt;
+		}
+		return this.oauth2Client.generateAuthUrl(options);
 	}
 
 	private openBrowser(url: string): void {

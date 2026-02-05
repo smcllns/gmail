@@ -157,6 +157,29 @@ describe("MockGmailService", () => {
 			expect(downloads[1].filename).toBe("image.png");
 		});
 
+		test("returns empty downloads when no attachments", async () => {
+			const thread: EnhancedThread = {
+				id: "thread123",
+				historyId: "456",
+				messages: [
+					{
+						id: "msg1",
+						threadId: "thread123",
+						parsed: {
+							body: "No attachments",
+							headers: {},
+							attachments: [],
+						},
+					},
+				],
+			};
+
+			mock.setThread("thread123", thread);
+
+			const result = await mock.getThread("test@example.com", "thread123", true);
+			expect(result).toEqual([]);
+		});
+
 		test("records call parameters", async () => {
 			mock.setThread("thread123", { id: "thread123", historyId: "1" });
 			await mock.getThread("test@example.com", "thread123", false);
@@ -196,6 +219,32 @@ describe("MockGmailService", () => {
 			expect(updatedThread.messages?.[0].labelIds).toContain("INBOX");
 			expect(updatedThread.messages?.[0].labelIds).toContain("STARRED");
 			expect(updatedThread.messages?.[0].labelIds).not.toContain("UNREAD");
+		});
+
+		test("handles messages without labelIds", async () => {
+			const thread: EnhancedThread = {
+				id: "thread1",
+				historyId: "1",
+				messages: [
+					{
+						id: "msg1",
+						threadId: "thread1",
+					},
+				],
+			};
+
+			mock.setThread("thread1", thread);
+
+			const result = await mock.modifyLabels(
+				"test@example.com",
+				["thread1"],
+				["STARRED"],
+				["UNREAD"],
+			);
+
+			expect(result[0].success).toBe(true);
+			const updatedThread = (await mock.getThread("test@example.com", "thread1")) as EnhancedThread;
+			expect(updatedThread.messages?.[0].labelIds).toEqual(["STARRED"]);
 		});
 
 		test("returns error for nonexistent thread", async () => {
@@ -327,6 +376,14 @@ describe("MockGmailService", () => {
 			mock.setError("searchThreads", new Error("API Error"));
 
 			await expect(mock.searchThreads("test@example.com", "query")).rejects.toThrow("API Error");
+		});
+
+		test("throws configured error for modifyLabels", async () => {
+			mock.setError("modifyLabels", new Error("Modify Error"));
+
+			await expect(
+				mock.modifyLabels("test@example.com", ["thread1"], ["STARRED"], []),
+			).rejects.toThrow("Modify Error");
 		});
 
 		test("throws error only once when once=true", async () => {

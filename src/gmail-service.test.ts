@@ -344,6 +344,16 @@ describe("extractBody", () => {
 		expect(extractBody(msg)).toBe("Hello World");
 	});
 
+	test("uses top-level body data even when parts are present", () => {
+		const msg = {
+			payload: {
+				body: { data: "RGlyZWN0" }, // "Direct"
+				parts: [{ mimeType: "text/plain", body: { data: "UGxhaW4gdGV4dA" } }],
+			},
+		};
+		expect(extractBody(msg)).toBe("Direct");
+	});
+
 	test("prefers text/plain part over text/html", () => {
 		const msg = {
 			payload: {
@@ -493,6 +503,22 @@ describe("extractAttachmentMetadata", () => {
 		};
 		expect(extractAttachmentMetadata(msg)).toEqual([
 			{ filename: "unknown.bin", mimeType: "application/octet-stream", size: 100 },
+		]);
+	});
+
+	test("defaults size to 0 when missing", () => {
+		const msg = {
+			payload: {
+				parts: [
+					{
+						filename: "nosize.bin",
+						body: { attachmentId: "att1" },
+					},
+				],
+			},
+		};
+		expect(extractAttachmentMetadata(msg)).toEqual([
+			{ filename: "nosize.bin", mimeType: "application/octet-stream", size: 0 },
 		]);
 	});
 

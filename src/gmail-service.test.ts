@@ -248,6 +248,15 @@ describe("sanitizeFilename", () => {
 		expect(sanitizeFilename("folder\\file.txt")).toBe("folder_file.txt");
 		expect(sanitizeFilename("")).toBe("attachment");
 	});
+
+	test("trims surrounding whitespace", () => {
+		expect(sanitizeFilename("  report.pdf  ")).toBe("report.pdf");
+	});
+
+	test("caps length at 200 characters", () => {
+		const longName = "a".repeat(210);
+		expect(sanitizeFilename(longName)).toHaveLength(200);
+	});
 });
 
 describe("decodeBase64Url", () => {

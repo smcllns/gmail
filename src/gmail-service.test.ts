@@ -15,6 +15,7 @@ import {
 import type { EmailAccount } from "./types";
 
 describe("GmailService programmatic tokens", () => {
+	const configDir = "/tmp/test-gmail-programmatic-tokens";
 	const testAccount: EmailAccount = {
 		email: "user@example.com",
 		oauth2: {
@@ -26,7 +27,7 @@ describe("GmailService programmatic tokens", () => {
 	};
 
 	test("constructor accepts accounts option", () => {
-		const service = new GmailService({ accounts: [testAccount] });
+		const service = new GmailService({ configDir, accounts: [testAccount] });
 		const accounts = service.listAccounts();
 		expect(accounts).toHaveLength(1);
 		expect(accounts[0].email).toBe("user@example.com");
@@ -42,7 +43,7 @@ describe("GmailService programmatic tokens", () => {
 				refreshToken: "refresh-2",
 			},
 		};
-		const service = new GmailService({ accounts: [testAccount, account2] });
+		const service = new GmailService({ configDir, accounts: [testAccount, account2] });
 		const accounts = service.listAccounts();
 		expect(accounts).toHaveLength(2);
 		expect(accounts.map((a) => a.email).sort()).toEqual(["other@example.com", "user@example.com"]);
@@ -54,7 +55,7 @@ describe("GmailService programmatic tokens", () => {
 	});
 
 	test("setAccountTokens adds an account", () => {
-		const service = new GmailService({ accounts: [] });
+		const service = new GmailService({ configDir, accounts: [] });
 		service.setAccountTokens(testAccount);
 		const accounts = service.listAccounts();
 		expect(accounts).toHaveLength(1);
@@ -62,7 +63,7 @@ describe("GmailService programmatic tokens", () => {
 	});
 
 	test("setAccountTokens overwrites existing account with same email", () => {
-		const service = new GmailService({ accounts: [testAccount] });
+		const service = new GmailService({ configDir, accounts: [testAccount] });
 		const updated: EmailAccount = {
 			email: "user@example.com",
 			oauth2: {
@@ -78,7 +79,7 @@ describe("GmailService programmatic tokens", () => {
 	});
 
 	test("setAccountTokens clears cached gmail client for that email", () => {
-		const service = new GmailService({ accounts: [testAccount] });
+		const service = new GmailService({ configDir, accounts: [testAccount] });
 		const updated: EmailAccount = {
 			email: "user@example.com",
 			oauth2: {
@@ -94,7 +95,7 @@ describe("GmailService programmatic tokens", () => {
 	});
 
 	test("deleteAccount removes in-memory account", () => {
-		const service = new GmailService({ accounts: [testAccount] });
+		const service = new GmailService({ configDir, accounts: [testAccount] });
 		expect(service.listAccounts()).toHaveLength(1);
 		const deleted = service.deleteAccount("user@example.com");
 		expect(deleted).toBe(true);
@@ -102,29 +103,25 @@ describe("GmailService programmatic tokens", () => {
 	});
 
 	test("deleteAccount returns false for unknown account", () => {
-		const service = new GmailService({ accounts: [] });
+		const service = new GmailService({ configDir, accounts: [] });
 		const deleted = service.deleteAccount("nonexistent@example.com");
 		expect(deleted).toBe(false);
 	});
 
 	test("addGmailAccount rejects duplicate email from in-memory accounts", async () => {
-		const service = new GmailService({ accounts: [testAccount] });
+		const service = new GmailService({ configDir, accounts: [testAccount] });
 		await expect(
 			service.addGmailAccount("user@example.com", "client", "secret"),
 		).rejects.toThrow("Account 'user@example.com' already exists");
 	});
 
-	test("unknown email throws without triggering filesystem access", () => {
-		const service = new GmailService({ accounts: [testAccount] });
-		// Accessing a typo'd email should throw "not found" without
-		// creating ~/.gmail-cli/ via lazy AccountStorage init.
+	test("unknown email throws", () => {
+		const service = new GmailService({ configDir, accounts: [testAccount] });
 		try {
 			(service as any).getGmailClient("typo@example.com");
 		} catch (e: any) {
 			expect(e.message).toBe("Account 'typo@example.com' not found");
 		}
-		// _accountStorage should not have been initialized
-		expect((service as any)._accountStorage).toBeUndefined();
 	});
 });
 

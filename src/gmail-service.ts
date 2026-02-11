@@ -354,10 +354,8 @@ export class GmailService {
 	listAccounts(): EmailAccount[] {
 		// In-memory accounts take precedence over storage for same email
 		const merged = new Map<string, EmailAccount>();
-		if (this._accountStorage) {
-			for (const account of this._accountStorage.getAllAccounts()) {
-				merged.set(account.email, account);
-			}
+		for (const account of this.accountStorage.getAllAccounts()) {
+			merged.set(account.email, account);
 		}
 		for (const account of this.inMemoryAccounts.values()) {
 			merged.set(account.email, account);

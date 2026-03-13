@@ -1,6 +1,6 @@
 {
 	"name": "@smcllns/gmail",
-	"version": "0.8.0",
+	"version": "0.8.1",
 	"description": "Minimal Gmail CLI with restricted scopes for Claude Code and other agents",
 	"type": "module",
 	"bin": {
@@ -52,5 +52,8 @@
 	"homepage": "https://github.com/smcllns/gmail#readme",
 	"engines": {
 		"node": ">=20.0.0"
+	},
+	"overrides": {
+		"gaxios": "7.1.4"
 	}
 }

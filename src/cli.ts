@@ -2,7 +2,7 @@
 
 import * as fs from "fs";
 import { parseArgs } from "util";
-import { DEFAULT_GMAIL_SCOPES, EnhancedThread, GmailService, READONLY_GMAIL_SCOPES } from "./gmail-service.js";
+import { DEFAULT_GMAIL_SCOPES, type EnhancedThread, GmailService, READONLY_GMAIL_SCOPES } from "./gmail-service.js";
 
 let service!: GmailService;
 
@@ -78,6 +78,14 @@ GMAIL COMMANDS
       System labels: INBOX, UNREAD, STARRED, IMPORTANT, TRASH, SPAM
       Adding TRASH or SPAM is blocked unless --allow-dangerous-labels is set.
 
+  gmail draft <threadId> --to <email> --subject <subject> --body <body>
+      Create a draft reply in Gmail. Opens in Drafts for human review before sending.
+      --to         Recipient email address
+      --subject    Email subject line
+      --body       Plain text body (use \\n for newlines)
+      If threadId is provided, creates an in-thread reply (pulls In-Reply-To/References).
+      If threadId is "new", creates a standalone draft.
+
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.
       Uses canonical URL format with email parameter.
@@ -102,6 +110,8 @@ EXAMPLES
   gmail labels edit "My Label" --name "Renamed Label"
   gmail labels edit "My Label" --bg "#16a765"
   gmail labels abc123 --add Work --remove UNREAD
+  gmail draft 19aea1f2f3532db5 --to bob@example.com --subject "Re: Hello" --body "Thanks!"
+  gmail draft new --to alice@example.com --subject "Hey" --body "Just checking in"
   gmail url 19aea1f2f3532db5 19aea1f2f3532db6
 
 DATA STORAGE (default: ~/.gmail-cli/, override with --config-dir)
@@ -187,6 +197,9 @@ async function main() {
 				break;
 			case "labels":
 				await handleLabels(account, commandArgs);
+				break;
+			case "draft":
+				await handleDraft(account, commandArgs);
 				break;
 			case "send":
 				handleRestrictedSend();
@@ -550,6 +563,64 @@ Use --allow-dangerous-labels to override.`,
 	for (const r of results) {
 		console.log(`${r.threadId}: ${r.success ? "ok" : r.error}`);
 	}
+}
+
+async function handleDraft(account: string, args: string[]) {
+	const { values, positionals } = parseArgs({
+		args,
+		options: {
+			to: { type: "string" },
+			subject: { type: "string", short: "s" },
+			body: { type: "string", short: "b" },
+		},
+		allowPositionals: true,
+	});
+
+	if (!values.to) error("--to is required");
+	if (!values.subject) error("--subject is required");
+	if (!values.body) error("--body is required");
+
+	const threadId = positionals[0];
+	const isReply = threadId && threadId !== "new";
+
+	let inReplyTo: string | undefined;
+	let references: string | undefined;
+
+	if (isReply) {
+		// Fetch the thread to get Message-ID for proper threading
+		const thread = await service.getThread(account, threadId, false) as EnhancedThread;
+		const lastMessage = thread.messages?.[thread.messages.length - 1];
+		if (lastMessage) {
+			// Get the Message-ID header from the raw message
+			const messageId = lastMessage.payload?.headers?.find(
+				(h: any) => h.name?.toLowerCase() === "message-id"
+			)?.value;
+			if (messageId) {
+				inReplyTo = messageId;
+				// Build References chain
+				const existingRefs = lastMessage.payload?.headers?.find(
+					(h: any) => h.name?.toLowerCase() === "references"
+				)?.value;
+				references = existingRefs ? `${existingRefs} ${messageId}` : messageId;
+			}
+		}
+	}
+
+	// Unescape \n in body to actual newlines
+	const body = values.body.replace(/\\n/g, "\n");
+
+	const result = await service.createDraft(account, {
+		to: values.to,
+		subject: values.subject,
+		body,
+		threadId: isReply ? threadId : undefined,
+		inReplyTo,
+		references,
+	});
+
+	console.log(`Draft created: ${result.id}`);
+	console.log(`Thread: ${result.threadId}`);
+	console.log(`URL: ${result.url}`);
 }
 
 // Restricted operation handlers with clear guidance

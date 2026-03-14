@@ -826,6 +826,59 @@ export class GmailService {
 		return downloadedAttachments;
 	}
 
+	async createDraft(
+		email: string,
+		options: {
+			to: string;
+			subject: string;
+			body: string;
+			threadId?: string;
+			inReplyTo?: string;
+			references?: string;
+		},
+	): Promise<{ id: string; threadId: string; url: string }> {
+		this.ensureAnyScope(email, [GMAIL_MODIFY_SCOPE], "creating drafts");
+		const gmail = this.getGmailClient(email);
+
+		// Build RFC 2822 message
+		const headers = [
+			`From: ${email}`,
+			`To: ${options.to}`,
+			`Subject: ${options.subject}`,
+		];
+
+		if (options.inReplyTo) {
+			headers.push(`In-Reply-To: ${options.inReplyTo}`);
+		}
+		if (options.references) {
+			headers.push(`References: ${options.references}`);
+		}
+
+		headers.push("Content-Type: text/plain; charset=utf-8");
+		headers.push("");
+		headers.push(options.body);
+
+		const raw = Buffer.from(headers.join("\r\n")).toString("base64url");
+
+		const requestBody: any = {
+			message: { raw },
+		};
+		if (options.threadId) {
+			requestBody.message.threadId = options.threadId;
+		}
+
+		const response = await gmail.users.drafts.create({
+			userId: "me",
+			requestBody,
+		});
+
+		const draftId = response.data.id || "";
+		const threadId = response.data.message?.threadId || "";
+		const url = `https://mail.google.com/mail/?authuser=${encodeURIComponent(email)}#drafts/${threadId}`;
+
+		return { id: draftId, threadId, url };
+	}
+
 	private getHeaderValue(message: GmailMessage, headerName: string): string | undefined {
 		const header = message.payload?.headers?.find((h) => h.name?.toLowerCase() === headerName.toLowerCase());
 		return header?.value || undefined;

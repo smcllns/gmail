@@ -3,6 +3,7 @@ import * as path from "path";
 import { OAuth2Client } from "google-auth-library";
 import { type gmail_v1, google } from "googleapis";
 import { AccountStorage, DEFAULT_CONFIG_DIR } from "./account-storage.js";
+import { createProxyGmailClient } from "./gmail-proxy-client.js";
 import {
 	DEFAULT_GMAIL_SCOPES,
 	GMAIL_LABELS_SCOPE,
@@ -405,21 +406,28 @@ export class GmailService {
 
 	private getGmailClient(email: string): any {
 		if (!this.gmailClients.has(email)) {
-			const account = this.getAccount(email);
+			const proxyPath = process.env.GMAIL_PROXY;
+			if (proxyPath) {
+				// Route through security proxy — no token needed locally
+				const gmail = createProxyGmailClient(proxyPath);
+				this.gmailClients.set(email, gmail);
+			} else {
+				const account = this.getAccount(email);
 
-			const oauth2Client = new OAuth2Client(
-				account.oauth2.clientId,
-				account.oauth2.clientSecret,
-				"http://localhost",
-			);
+				const oauth2Client = new OAuth2Client(
+					account.oauth2.clientId,
+					account.oauth2.clientSecret,
+					"http://localhost",
+				);
 
-			oauth2Client.setCredentials({
-				refresh_token: account.oauth2.refreshToken,
-				access_token: account.oauth2.accessToken,
-			});
+				oauth2Client.setCredentials({
+					refresh_token: account.oauth2.refreshToken,
+					access_token: account.oauth2.accessToken,
+				});
 
-			const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-			this.gmailClients.set(email, gmail);
+				const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+				this.gmailClients.set(email, gmail);
+			}
 		}
 
 		return this.gmailClients.get(email)!;

@@ -59,6 +59,25 @@ After [setup](#setup-one-time), search your inbox:
 gmail search "in:inbox is:unread" --max 10
 ```
 
+### Environment variable credentials
+
+Skip file-based setup entirely by passing OAuth credentials as env vars:
+
+```bash
+GMAIL_CLIENT_ID=xxx GMAIL_CLIENT_SECRET=xxx GMAIL_REFRESH_TOKEN=xxx GMAIL_ACCOUNT=you@gmail.com \
+  gmail search "in:inbox" --max 10
+```
+
+| Env var | Required | Description |
+|---------|----------|-------------|
+| `GMAIL_CLIENT_ID` | Yes | OAuth client ID |
+| `GMAIL_CLIENT_SECRET` | Yes | OAuth client secret |
+| `GMAIL_REFRESH_TOKEN` | Yes | OAuth refresh token |
+| `GMAIL_ACCOUNT` | Yes | Email address |
+| `GMAIL_PROXY` | No | Route through security proxy (unix socket path or host:port) |
+
+When set, credentials stay in memory — no files are read or written. This is the recommended approach for automated environments and sprites.
+
 ## Setup (one-time)
 
 ### 1. Create OAuth credentials

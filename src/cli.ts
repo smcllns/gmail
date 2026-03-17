@@ -137,10 +137,15 @@ function getAccount(args: string[]): { account: string; remainingArgs: string[] 
 		return { account, remainingArgs };
 	}
 
-	// Use default account
+	// Use GMAIL_ACCOUNT env var, then default account
+	const envAccount = process.env.GMAIL_ACCOUNT;
+	if (envAccount) {
+		return { account: envAccount, remainingArgs: args };
+	}
+
 	const defaultAccount = service.getDefaultAccount();
 	if (!defaultAccount) {
-		error("No default account configured. Run: gmail config default <email>");
+		error("No default account configured. Set GMAIL_ACCOUNT env var or run: gmail config default <email>");
 	}
 	return { account: defaultAccount, remainingArgs: args };
 }
@@ -161,6 +166,33 @@ async function main() {
 	}
 
 	service = new GmailService(configDir ? { configDir } : undefined);
+
+	// Bootstrap from env vars if available (credentials stay in memory, no files)
+	const hasAnyGmailEnv = process.env.GMAIL_CLIENT_ID || process.env.GMAIL_CLIENT_SECRET || process.env.GMAIL_REFRESH_TOKEN;
+	if (hasAnyGmailEnv && !process.env.GMAIL_REFRESH_TOKEN) {
+		error("Incomplete env var credentials: GMAIL_REFRESH_TOKEN is required when GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET is set");
+	}
+	if (process.env.GMAIL_REFRESH_TOKEN) {
+		const clientId = process.env.GMAIL_CLIENT_ID;
+		const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+		if (!clientId || !clientSecret) {
+			error("GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET required when using GMAIL_REFRESH_TOKEN");
+		}
+		// Account from env var or --account flag
+		const accountIdx = args.indexOf("--account");
+		const email = process.env.GMAIL_ACCOUNT
+			|| args.find(a => a.startsWith("--account="))?.split("=")[1]
+			|| (accountIdx !== -1 ? args[accountIdx + 1] : undefined);
+		if (!email) {
+			error("GMAIL_ACCOUNT or --account required when using env var credentials");
+		}
+		// setAccountTokens stores in memory only — never writes to disk
+		service.setAccountTokens({
+			email,
+			oauth2: { clientId, clientSecret, refreshToken: process.env.GMAIL_REFRESH_TOKEN },
+			scopes: DEFAULT_GMAIL_SCOPES,
+		});
+	}
 
 	const first = args[0];
 	const rest = args.slice(1);
@@ -203,8 +235,10 @@ async function main() {
 				break;
 			case "send":
 				handleRestrictedSend();
+				break;
 			case "delete":
 				handleRestrictedDelete();
+				break;
 			case "url":
 				handleUrl(account, commandArgs);
 				break;

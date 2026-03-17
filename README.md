@@ -145,20 +145,6 @@ In-thread replies automatically set `In-Reply-To` and `References` headers for p
 gmail url <threadId>
 ```
 
-## Security proxy mode
-
-When the `GMAIL_PROXY` env var is set, all Gmail API calls route through a proxy instead of directly to googleapis.com. The proxy handles authentication and can enforce policies on which operations are permitted.
-
-```bash
-# Via unix socket
-GMAIL_PROXY=/run/gmail-proxy/gmail.sock gmail search "in:inbox"
-
-# Via TCP
-GMAIL_PROXY=localhost:9877 gmail search "in:inbox"
-```
-
-This is useful for sandboxed environments where the CLI shouldn't hold OAuth tokens directly — the proxy manages credentials and the CLI communicates through a local socket or port.
-
 ## Custom config directory
 
 By default, credentials, accounts, and attachments are stored in `~/.gmail-cli/`. Use `--config-dir` to store them in a project-local directory instead:
@@ -334,6 +320,20 @@ expect(mock.calls.searchThreads[0].args[1]).toBe('in:inbox');
 // Reset between tests
 mock.reset();
 ```
+
+## Security proxy mode
+
+When the `GMAIL_PROXY` env var is set, all Gmail API calls route through a proxy instead of directly to googleapis.com. The proxy handles authentication and can enforce policies on which operations are permitted.
+
+```bash
+# Via unix socket
+GMAIL_PROXY=/run/gmail-proxy/gmail.sock gmail search "in:inbox"
+
+# Via TCP
+GMAIL_PROXY=localhost:9877 gmail search "in:inbox"
+```
+
+This is useful for sandboxed environments where the CLI shouldn't hold OAuth tokens directly — the proxy manages credentials and the CLI communicates through a local socket or port.
 
 ## License
 

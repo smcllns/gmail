@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import * as http from "http";
 import type { AddressInfo } from "net";
 import * as readline from "readline";
+import type { ParsedUrlQuery } from "querystring";
 import * as url from "url";
 import { OAuth2Client } from "google-auth-library";
 
@@ -131,7 +132,7 @@ export class GmailOAuthFlow {
 	}
 
 	private async handleCallback(
-		query: any,
+		query: ParsedUrlQuery,
 		res: http.ServerResponse,
 		resolve: (result: AuthResult) => void,
 	): Promise<void> {
@@ -139,7 +140,7 @@ export class GmailOAuthFlow {
 			res.writeHead(200, { "Content-Type": "text/html" });
 			res.end("<html><body><h1>Authorization cancelled</h1></body></html>");
 			this.cleanup();
-			resolve({ success: false, error: query.error });
+			resolve({ success: false, error: String(query.error) });
 			return;
 		}
 

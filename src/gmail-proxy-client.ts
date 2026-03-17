@@ -3,46 +3,49 @@
  * requests through a Gmail security proxy (unix socket or TCP).
  *
  * Matches the subset of the googleapis API shape used by GmailService.
+ * This is intentionally duck-typed to avoid coupling to googleapis types —
+ * the proxy client is a standalone module with no googleapis dependency.
  */
 
 const API_BASE = "/gmail/v1/users/me";
 
-type FetchOptions = { unix?: string };
+type QueryParams = Record<string, string | number | string[] | undefined>;
 
-function buildFetchOptions(proxyPath: string): { baseUrl: string; fetchOpts: FetchOptions } {
+interface ProxyFetchOptions {
+  method?: string;
+  body?: Record<string, unknown>;
+  query?: QueryParams;
+}
+
+interface GmailApiError extends Error {
+  code: number;
+  response: { status: number; data: string };
+}
+
+function buildFetchOptions(proxyPath: string): { baseUrl: string; unix?: string } {
   if (proxyPath.startsWith("/") || proxyPath.startsWith("./")) {
-    // Unix socket path
-    return {
-      baseUrl: `http://localhost${API_BASE}`,
-      fetchOpts: { unix: proxyPath },
-    };
+    return { baseUrl: `http://localhost${API_BASE}`, unix: proxyPath };
   }
-  // TCP host:port
   const host = proxyPath.includes("://") ? proxyPath : `http://${proxyPath}`;
-  return {
-    baseUrl: `${host}${API_BASE}`,
-    fetchOpts: {},
-  };
+  return { baseUrl: `${host}${API_BASE}` };
 }
 
 async function proxyFetch(
   proxyPath: string,
   path: string,
-  options: { method?: string; body?: any; query?: Record<string, any> } = {},
-): Promise<any> {
-  const { baseUrl, fetchOpts } = buildFetchOptions(proxyPath);
+  options: ProxyFetchOptions = {},
+): Promise<{ data: unknown }> {
+  const { baseUrl, unix } = buildFetchOptions(proxyPath);
 
-  // Build query string
   let url = `${baseUrl}${path}`;
   if (options.query) {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(options.query)) {
-      if (v !== undefined && v !== null) {
-        if (Array.isArray(v)) {
-          for (const item of v) params.append(k, String(item));
-        } else {
-          params.set(k, String(v));
-        }
+      if (v === undefined || v === null) continue;
+      if (Array.isArray(v)) {
+        for (const item of v) params.append(k, item);
+      } else {
+        params.set(k, String(v));
       }
     }
     const qs = params.toString();
@@ -56,16 +59,18 @@ async function proxyFetch(
     body = JSON.stringify(options.body);
   }
 
-  const res = await fetch(url, {
+  const fetchInit: RequestInit & { unix?: string } = {
     method: options.method || "GET",
     headers,
     body,
-    ...fetchOpts,
-  } as any);
+  };
+  if (unix) fetchInit.unix = unix;
+
+  const res = await fetch(url, fetchInit as RequestInit);
 
   if (!res.ok) {
     const text = await res.text();
-    const error = new Error(`Gmail API error ${res.status}: ${text}`) as any;
+    const error = new Error(`Gmail API error ${res.status}: ${text}`) as GmailApiError;
     error.code = res.status;
     error.response = { status: res.status, data: text };
     throw error;
@@ -75,7 +80,7 @@ async function proxyFetch(
 }
 
 export function createProxyGmailClient(proxyPath: string) {
-  const pf = (path: string, opts?: any) => proxyFetch(proxyPath, path, opts);
+  const pf = (path: string, opts?: ProxyFetchOptions) => proxyFetch(proxyPath, path, opts);
 
   return {
     users: {
@@ -93,7 +98,7 @@ export function createProxyGmailClient(proxyPath: string) {
         get: (params: { userId: string; id: string }) =>
           pf(`/threads/${params.id}`),
 
-        modify: (params: { userId: string; id: string; requestBody: any }) =>
+        modify: (params: { userId: string; id: string; requestBody: Record<string, unknown> }) =>
           pf(`/threads/${params.id}/modify`, {
             method: "POST",
             body: params.requestBody,
@@ -111,21 +116,21 @@ export function createProxyGmailClient(proxyPath: string) {
       },
 
       labels: {
-        list: (params: { userId: string }) =>
+        list: (_params: { userId: string }) =>
           pf("/labels"),
 
         get: (params: { userId: string; id: string }) =>
           pf(`/labels/${params.id}`),
 
-        create: (params: { userId: string; requestBody: any }) =>
+        create: (params: { userId: string; requestBody: Record<string, unknown> }) =>
           pf("/labels", { method: "POST", body: params.requestBody }),
 
-        update: (params: { userId: string; id: string; requestBody: any }) =>
+        update: (params: { userId: string; id: string; requestBody: Record<string, unknown> }) =>
           pf(`/labels/${params.id}`, { method: "PUT", body: params.requestBody }),
       },
 
       drafts: {
-        create: (params: { userId: string; requestBody: any }) =>
+        create: (params: { userId: string; requestBody: Record<string, unknown> }) =>
           pf("/drafts", { method: "POST", body: params.requestBody }),
       },
     },

@@ -393,6 +393,7 @@ export class GmailService {
 	}
 
 	private ensureAnyScope(email: string, required: string[], action: string): void {
+		if (process.env.GMAIL_PROXY) return; // Proxy enforces scope, not the CLI
 		const account = this.getAccount(email);
 		if (!account.scopes || account.scopes.length === 0) {
 			// Security: preserve compatibility for legacy accounts without recorded scopes.

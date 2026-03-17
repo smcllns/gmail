@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.1
+
+### Added
+
+- Environment variable credentials (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_ACCOUNT`) — run without file-based config
+- Partial env var detection with helpful error when setup is incomplete
+- `--account=` syntax support (in addition to `--account <email>`)
+
+### Changed
+
+- `ensureAnyScope` skips client-side scope checks when `GMAIL_PROXY` is set (proxy enforces scope)
+- Removed all unintentional `any` types across codebase (only 2 intentional remain with comments)
+- `MessagePayload` type now includes `attachmentId` in body
+
+### Fixed
+
+- Silent wrong account resolution when `--account` flag absent but env var credentials set
+- Missing `break` in `send`/`delete` switch cases (worked by accident via `throw`)
+
 ## 0.8.0
 
 ### Added

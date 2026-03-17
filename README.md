@@ -31,9 +31,11 @@ This is a fork of the excellent [@mariozechner/gmcli](https://github.com/badlogi
 | Gmail permissions | Full access | Read and organize mail (no send/delete) |
 | OAuth scopes | `mail.google.com` | `gmail.modify`, `gmail.labels` (live) / `gmail.readonly` (dry-run) |
 | Read email | ✅ Yes | ✅ Yes |
-| Send email | ✅ Yes | ❌ No |
+| Send email | ✅ Yes | ❌ No (create drafts for human review) |
 | Delete email | ✅ Yes | ❌ No |
+| Compose drafts | ❌ No | ✅ Yes (plaintext, human sends) |
 | Manage labels | ❌ No | ✅ Yes |
+| Security proxy mode | ❌ No | ✅ Yes (`GMAIL_PROXY` env var) |
 | Shell command | `gmcli` | `gmail` |
 | Set default account | ❌ No | ✅ Yes |
 
@@ -126,11 +128,36 @@ gmail labels <threadId> --add Receipts --remove INBOX  # add label "Receipts" an
 gmail labels <threadId> --add TRASH --allow-dangerous-labels  # requires explicit override
 ```
 
+### Create drafts
+
+Create drafts for human review before sending. Useful for agents that should propose replies without sending directly.
+
+```bash
+gmail draft <threadId> --to "recipient@example.com" --subject "Re: Hello" --body "Thanks for your email"
+gmail draft new --to "someone@example.com" --subject "Hello" --body "Just reaching out"
+```
+
+In-thread replies automatically set `In-Reply-To` and `References` headers for proper Gmail threading.
+
 ### Get Gmail URLs to view messages in browser
 
 ```bash
 gmail url <threadId>
 ```
+
+## Security proxy mode
+
+When the `GMAIL_PROXY` env var is set, all Gmail API calls route through a proxy instead of directly to googleapis.com. The proxy handles authentication and can enforce policies on which operations are permitted.
+
+```bash
+# Via unix socket
+GMAIL_PROXY=/run/gmail-proxy/gmail.sock gmail search "in:inbox"
+
+# Via TCP
+GMAIL_PROXY=localhost:9877 gmail search "in:inbox"
+```
+
+This is useful for sandboxed environments where the CLI shouldn't hold OAuth tokens directly — the proxy manages credentials and the CLI communicates through a local socket or port.
 
 ## Custom config directory
 
@@ -198,6 +225,10 @@ GMAIL COMMANDS
       Modify labels on threads.
       System labels: INBOX, UNREAD, STARRED, IMPORTANT, TRASH, SPAM
       Adding TRASH or SPAM is blocked unless --allow-dangerous-labels is set.
+
+  gmail draft <threadId> --to <email> --subject <text> --body <text>
+      Create a draft reply in a thread. Use "new" as threadId for standalone drafts.
+      In-thread replies auto-set In-Reply-To/References headers.
 
   gmail url <threadIds...>
       Generate Gmail web URLs for threads.
@@ -270,6 +301,7 @@ Note: `getThread()` normalizes Google API responses, converting `null` values to
 | `createLabel(email, name, options?)` | Create a label with optional colors |
 | `updateLabel(email, labelId, options?)` | Update a label's name or colors |
 | `getLabelMap(email)` | Get bidirectional label name/ID lookup maps |
+| `createDraft(email, options)` | Create a draft (to, subject, body, threadId?, inReplyTo?, references?) |
 | `downloadMessageAttachments(email, messageId)` | Download all attachments from a message |
 | `setAccountTokens(account)` | Add or update account tokens in memory |
 | `addGmailAccount(email, clientId, clientSecret, manual?, options?)` | Add account via OAuth (disk-backed) |

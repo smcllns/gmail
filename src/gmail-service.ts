@@ -117,7 +117,7 @@ export function normalizeNulls<T>(obj: T): T {
 }
 
 type MessagePayload = {
-	body?: { data?: string | null; size?: number | null };
+	body?: { attachmentId?: string | null; data?: string | null; size?: number | null };
 	mimeType?: string | null;
 	parts?: MessagePayload[];
 	filename?: string | null;
@@ -262,6 +262,10 @@ export interface GmailServiceOptions {
 export class GmailService {
 	private _accountStorage?: AccountStorage;
 	private configDir?: string;
+	// Returns either a googleapis gmail_v1.Gmail or a proxy client (gmail-proxy-client.ts).
+	// Both implement the same shape but don't share a formal interface — kept as `any`
+	// because all public methods that use it have fully typed inputs and outputs.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private gmailClients: Map<string, any> = new Map();
 	private inMemoryAccounts: Map<string, EmailAccount> = new Map();
 
@@ -405,6 +409,7 @@ export class GmailService {
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private getGmailClient(email: string): any {
 		if (!this.gmailClients.has(email)) {
 			const proxyPath = process.env.GMAIL_PROXY;
@@ -667,7 +672,7 @@ export class GmailService {
 	): Promise<Array<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }>> {
 		const gmail = this.getGmailClient(email);
 		const response = await gmail.users.labels.list({ userId: "me" });
-		return (response.data.labels || []).map((l: any) => ({
+		return (response.data.labels || []).map((l: gmail_v1.Schema$Label) => ({
 			id: l.id || "",
 			name: l.name || "",
 			type: l.type || "",
@@ -703,7 +708,7 @@ export class GmailService {
 	): Promise<{ id: string; name: string; type: string; textColor?: string; backgroundColor?: string }> {
 		this.ensureAnyScope(email, [GMAIL_LABELS_SCOPE], "creating labels");
 		const gmail = this.getGmailClient(email);
-		const requestBody: any = {
+		const requestBody: gmail_v1.Schema$Label = {
 			name,
 			labelListVisibility: options.showInList === false ? "labelHide" : "labelShow",
 			messageListVisibility: options.showInMessageList === false ? "hide" : "show",
@@ -749,7 +754,7 @@ export class GmailService {
 		const current = await gmail.users.labels.get({ userId: "me", id: labelId });
 		const currentColor = current.data.color;
 
-		const requestBody: any = {
+		const requestBody: gmail_v1.Schema$Label = {
 			name: options.name || current.data.name,
 		};
 
@@ -789,7 +794,7 @@ export class GmailService {
 			mimeType: string;
 		}> = [];
 
-		const collectAttachments = (payload: any) => {
+		const collectAttachments = (payload: MessagePayload | undefined) => {
 			if (payload?.parts) {
 				for (const part of payload.parts) {
 					if (part.body?.attachmentId && part.filename) {
@@ -869,12 +874,11 @@ export class GmailService {
 
 		const raw = Buffer.from(headers.join("\r\n")).toString("base64url");
 
-		const requestBody: any = {
-			message: { raw },
-		};
+		const message: gmail_v1.Schema$Message = { raw };
 		if (options.threadId) {
-			requestBody.message.threadId = options.threadId;
+			message.threadId = options.threadId;
 		}
+		const requestBody: gmail_v1.Schema$Draft = { message };
 
 		const response = await gmail.users.drafts.create({
 			userId: "me",

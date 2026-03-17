@@ -2,7 +2,7 @@
 
 import * as fs from "fs";
 import { parseArgs } from "util";
-import { DEFAULT_GMAIL_SCOPES, type EnhancedThread, GmailService, READONLY_GMAIL_SCOPES } from "./gmail-service.js";
+import { DEFAULT_GMAIL_SCOPES, type DownloadedAttachment, type EnhancedThread, GmailService, READONLY_GMAIL_SCOPES } from "./gmail-service.js";
 
 let service!: GmailService;
 
@@ -435,7 +435,7 @@ async function handleThread(account: string, args: string[]) {
 	const result = await service.getThread(account, threadId, download);
 
 	if (download) {
-		const attachments = result as any[];
+		const attachments = result as DownloadedAttachment[];
 		if (attachments.length === 0) {
 			console.log("No attachments");
 		} else {
@@ -627,13 +627,13 @@ async function handleDraft(account: string, args: string[]) {
 		if (lastMessage) {
 			// Get the Message-ID header from the raw message
 			const messageId = lastMessage.payload?.headers?.find(
-				(h: any) => h.name?.toLowerCase() === "message-id"
+				(h) => h.name?.toLowerCase() === "message-id"
 			)?.value;
 			if (messageId) {
 				inReplyTo = messageId;
 				// Build References chain
 				const existingRefs = lastMessage.payload?.headers?.find(
-					(h: any) => h.name?.toLowerCase() === "references"
+					(h) => h.name?.toLowerCase() === "references"
 				)?.value;
 				references = existingRefs ? `${existingRefs} ${messageId}` : messageId;
 			}

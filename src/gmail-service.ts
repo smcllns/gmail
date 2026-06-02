@@ -389,7 +389,7 @@ export class GmailService {
 	}
 
 	private getAccount(email: string): EmailAccount {
-		const account = this.inMemoryAccounts.get(email) ?? this._accountStorage?.getAccount(email);
+		const account = this.inMemoryAccounts.get(email) ?? this.accountStorage.getAccount(email);
 		if (!account) {
 			throw new Error(`Account '${email}' not found`);
 		}

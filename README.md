@@ -125,6 +125,8 @@ gmail search --label Label_123              # filter by label ID (from 'labels l
 gmail search "is:unread" --label INBOX      # combine query with label filter
 ```
 
+Each result represents a matching thread. DATE, FROM, and SUBJECT describe the thread's newest message, which may differ from the specific message that matched the query. DATE is rendered in UTC, while result order remains Gmail's search order.
+
 ### Read threads
 
 ```bash
@@ -212,7 +214,7 @@ GMAIL COMMANDS
 
   gmail search [query] [--max N] [--page TOKEN] [--label L]
       Search threads. Query uses Gmail syntax, --label filters by name or ID.
-      Returns: thread ID, date, sender, subject, labels.
+      Returns: thread ID, newest-message date/sender/subject, labels.
 
   gmail thread <threadId> [--download]
       Get full thread. --download saves attachments to <config-dir>/attachments/.

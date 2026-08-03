@@ -3,6 +3,7 @@
 import * as fs from "fs";
 import { parseArgs } from "util";
 import { DEFAULT_GMAIL_SCOPES, type DownloadedAttachment, type EnhancedThread, GmailService, READONLY_GMAIL_SCOPES } from "./gmail-service.js";
+import { formatSearchRowDate, selectLatestThreadMessage } from "./thread-summary.js";
 
 let service!: GmailService;
 
@@ -47,7 +48,7 @@ GMAIL COMMANDS
   gmail search [query] [--max N] [--page TOKEN] [--label L]
   gmail list [query] [--max N] [--page TOKEN] [--label L]
       Search threads. Query uses Gmail syntax, --label filters by name or ID.
-      Returns: thread ID, date, sender, subject, labels.
+      Returns: thread ID, newest-message date/sender/subject, labels.
 
       Examples:
         gmail search in:inbox is:unread
@@ -405,8 +406,8 @@ async function handleSearch(account: string, args: string[]) {
 	} else {
 		console.log("ID\tDATE\tFROM\tSUBJECT\tLABELS");
 		for (const t of results.threads) {
-			const msg = t.messages[0];
-			const date = msg?.date ? new Date(msg.date).toISOString().slice(0, 16).replace("T", " ") : "";
+			const msg = selectLatestThreadMessage(t.messages);
+			const date = formatSearchRowDate(msg);
 			const from = sanitizeSingleLine(msg?.from || "");
 			const subject = sanitizeSingleLine(msg?.subject || "(no subject)");
 			// Aggregate labels from all messages in thread to match Gmail web behavior

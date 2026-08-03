@@ -5,6 +5,7 @@ export type ThreadSearchMessage =
 
 function parseInternalDate(value: string | undefined): number | undefined {
 	const normalized = value?.trim();
+	// Gmail internalDate is a non-negative epoch-millisecond string.
 	if (!normalized || !/^\d+$/.test(normalized)) return undefined;
 
 	const timestamp = Number(normalized);
@@ -20,6 +21,7 @@ export function selectLatestThreadMessage(
 	let latestMessage: ThreadSearchMessage | undefined;
 	let latestTimestamp: number | undefined;
 
+	// Gmail returns thread messages oldest-first, so later entries win ties and fallback.
 	for (const message of messages) {
 		const timestamp = parseInternalDate(message.internalDate);
 		if (timestamp === undefined) continue;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ThreadSearchMessage } from "./thread-summary";
-import { formatSearchRowDate, selectLatestThreadMessage } from "./thread-summary";
+import type { ThreadSearchMessage } from "./thread-summary.js";
+import { formatSearchRowDate, selectLatestThreadMessage } from "./thread-summary.js";
 
 function message(
 	id: string,
